@@ -581,3 +581,138 @@ body {
 .tooltip-close-btn:hover {
   color: #374151;
 }
+
+/* 모바일용 아코디언은 데스크탑에서 숨김 */
+@media (min-width: 769px) {
+  .mobile-accordion, .mobile-res-list {
+    display: none;
+  }
+}
+
+/* =========================================
+   Mobile Responsive UI (max-width: 768px)
+   ========================================= */
+@media (max-width: 768px) {
+  body {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  #root {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .map-container {
+    position: relative;
+    order: 4;
+    height: 50vh;
+    width: 100%;
+    z-index: 1;
+  }
+
+  .header-bar {
+    order: 1;
+    margin: 0;
+    padding: 10px;
+    border-radius: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 12px;
+  }
+
+  .header-left {
+    justify-content: center;
+  }
+
+  .header-left h1 {
+    font-size: 1.2rem !important;
+  }
+
+  .header-national {
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .header-national-label {
+    font-size: 0.9rem;
+    padding: 4px 10px;
+  }
+
+  .header-national-rate strong, 
+  .header-national-counts strong {
+    font-size: 1.1rem;
+  }
+
+  .header-national-divider {
+    display: none;
+  }
+
+  .header-national-counts {
+    width: 100%;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  .header-right {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* 사이드바(도별 상황)를 자연스럽게 헤더 아래에 배치 */
+  .sidebar {
+    position: relative;
+    top: auto;
+    left: auto;
+    bottom: auto;
+    width: 100%;
+    height: auto;
+    order: 2;
+    border-radius: 0;
+    padding: 10px;
+    background: transparent;
+    box-shadow: none;
+    border: none;
+  }
+
+  .sidebar-list {
+    overflow-y: visible; /* 스크롤은 전체 페이지(#root)에서 처리 */
+  }
+
+  /* 데스크탑용 패널 숨김 (모바일에서는 아코디언으로 대체됨) */
+  .detail-panel, .sub-detail-panel {
+    display: none !important;
+  }
+
+  /* 아코디언 내부 카드 스타일 조정 */
+  .mobile-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+    margin-bottom: 8px;
+    padding-left: 15px; /* 들여쓰기 효과 */
+    border-left: 2px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .accordion-card {
+    min-height: 40px !important;
+  }
+
+  .mobile-res-list {
+    padding-left: 15px;
+    margin-bottom: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .mobile-res-list .res-item {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px;
+  }
+
+  /* 모바일 툴팁 중앙/하단 배치 제거 (데스크탑과 동일하게 지도 마커 옆에 표시) */
+}

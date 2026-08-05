@@ -316,38 +316,39 @@ function App() {
               </>
             )}
 
-            {hoveredJisa && (
+            {(hoveredJisa || (selectedJisa && selectedJisa.type === 'jisa')) && (
               <OverlayView
-                position={{ lat: hoveredJisa.lat, lng: hoveredJisa.lng }}
+                position={{ lat: (hoveredJisa || selectedJisa).lat, lng: (hoveredJisa || selectedJisa).lng }}
                 mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
               >
                 <div className="custom-jisa-tooltip">
                   <div className="tooltip-header">
-                    <span className="title">{hoveredJisa.name}</span>
+                    <span className="title">{(hoveredJisa || selectedJisa).name}</span>
                     <span style={{ 
                       fontWeight: 'bold', fontSize: '13px',
-                      color: hoveredJisa.riskClass === 'severe' ? '#ff0000' : 
-                             hoveredJisa.riskClass === 'alert' ? '#ff6600' : 
-                             hoveredJisa.riskClass === 'warn' ? '#ffcc00' : '#0066ff' 
+                      color: (hoveredJisa || selectedJisa).riskClass === 'severe' ? '#ff0000' : 
+                             (hoveredJisa || selectedJisa).riskClass === 'alert' ? '#ff6600' : 
+                             (hoveredJisa || selectedJisa).riskClass === 'warn' ? '#ffcc00' : '#0066ff' 
                     }}>
-                      {hoveredJisa.riskStr}
+                      {(hoveredJisa || selectedJisa).riskStr}
                     </span>
                   </div>
                   <div className="tooltip-body">
-                    <div className="tooltip-stat"><span>저수율</span><strong>{hoveredJisa.rate}%</strong></div>
+                    <div className="tooltip-stat"><span>저수율</span><strong>{(hoveredJisa || selectedJisa).rate}%</strong></div>
                     <div className="tooltip-divider"></div>
-                    <div className="tooltip-stat"><span>평년대비</span><strong>{hoveredJisa.perRate}%</strong></div>
+                    <div className="tooltip-stat"><span>평년대비</span><strong>{(hoveredJisa || selectedJisa).perRate}%</strong></div>
                     <div className="tooltip-divider"></div>
                     <div className="tooltip-counts">
-                      <div><strong>총 {((hoveredJisa.counts?.safe || 0) + (hoveredJisa.counts?.warn || 0) + (hoveredJisa.counts?.alert || 0) + (hoveredJisa.counts?.severe || 0)).toLocaleString()}개소</strong></div>
+                      <div><strong>총 {(((hoveredJisa || selectedJisa).counts?.safe || 0) + (((hoveredJisa || selectedJisa).counts?.warn || 0)) + (((hoveredJisa || selectedJisa).counts?.alert || 0)) + (((hoveredJisa || selectedJisa).counts?.severe || 0))).toLocaleString()}개소</strong></div>
                       <div className="counts-row">
-                        <span style={{color: '#0066ff'}}>관심 {(hoveredJisa.counts?.safe || 0).toLocaleString()}</span>
-                        <span style={{color: '#f59e0b'}}>주의 {(hoveredJisa.counts?.warn || 0).toLocaleString()}</span>
-                        <span style={{color: '#f97316'}}>경계 {(hoveredJisa.counts?.alert || 0).toLocaleString()}</span>
-                        <span style={{color: '#ef4444'}}>심각 {(hoveredJisa.counts?.severe || 0).toLocaleString()}</span>
+                        <span style={{color: '#0066ff'}}>관심 {((hoveredJisa || selectedJisa).counts?.safe || 0).toLocaleString()}</span>
+                        <span style={{color: '#f59e0b'}}>주의 {((hoveredJisa || selectedJisa).counts?.warn || 0).toLocaleString()}</span>
+                        <span style={{color: '#f97316'}}>경계 {((hoveredJisa || selectedJisa).counts?.alert || 0).toLocaleString()}</span>
+                        <span style={{color: '#ef4444'}}>심각 {((hoveredJisa || selectedJisa).counts?.severe || 0).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
+                  <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setHoveredJisa(null); if (selectedJisa && selectedJisa.type === 'jisa') setSelectedJisa(null); }}>✕</button>
                 </div>
               </OverlayView>
             )}
@@ -424,14 +425,6 @@ function App() {
               </>
             )}
           </span>
-          <button
-            className="header-refresh-btn"
-            onClick={() => { fetchData(false); setNextRefreshSec(600); }}
-            disabled={refreshing}
-            title="지금 즉시 데이터 갱신"
-          >
-            {refreshing ? '⏳' : '↺'} 수동 갱신
-          </button>
         </div>
       </header>
 
@@ -447,8 +440,8 @@ function App() {
               else if (bonbu.riskStr === '주의') { bRiskStr = '주의'; bRiskStatusClass = 'status-warn'; }
 
               return (
+                <React.Fragment key={bonbu.name}>
                 <div 
-                  key={bonbu.name} 
                   className={`bonbu-card ${selectedBonbu === bonbu.name ? 'active' : ''}`}
                   onClick={() => setSelectedBonbu(bonbu.name === selectedBonbu ? null : bonbu.name)}
                 >
@@ -472,6 +465,70 @@ function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* 모바일용 아코디언 패널 (지사 리스트 및 저수지) */}
+                {selectedBonbu === bonbu.name && (
+                  <div className="mobile-accordion">
+                    {data.jisaMap[bonbu.name] && data.jisaMap[bonbu.name].map(jisa => {
+                      let jRiskStatusClass = 'status-safe';
+                      if(jisa.riskClass === 'severe') jRiskStatusClass = 'status-alert';
+                      else if(jisa.riskClass === 'warn' || jisa.riskClass === 'alert') jRiskStatusClass = 'status-warn';
+
+                      return (
+                        <React.Fragment key={`mobile-jisa-${jisa.name}`}>
+                          <div 
+                            className={`bonbu-card accordion-card ${selectedJisaDetail?.name === jisa.name ? 'selected' : ''}`}
+                            onClick={() => setSelectedJisaDetail(selectedJisaDetail?.name === jisa.name ? null : jisa)}
+                          >
+                            <div className="card-left">
+                              <h3 style={{fontSize: '0.9rem'}}>{jisa.name}</h3>
+                              <div className={`overall-risk ${jRiskStatusClass}`}>{jisa.riskStr}</div>
+                            </div>
+                            <div className="card-right">
+                              <div className="card-right-top" style={{fontSize: '0.95rem'}}>
+                                <span>현재 <strong>{jisa.rate}%</strong></span>
+                                <span>평년대비 <strong>{jisa.perRate > 0 ? jisa.perRate.toFixed(1) : '0.0'}%</strong></span>
+                              </div>
+                              <div className="card-right-bottom" style={{fontSize: '0.85rem'}}>
+                                <div className="risk-summary">
+                                  <span>총<strong>{((jisa.counts?.safe || 0) + (jisa.counts?.warn || 0) + (jisa.counts?.alert || 0) + (jisa.counts?.severe || 0)).toLocaleString()}</strong></span>
+                                  <span>관심<strong className="text-safe">{(jisa.counts?.safe || 0).toLocaleString()}</strong></span>
+                                  <span>주의<strong className="text-warn">{(jisa.counts?.warn || 0).toLocaleString()}</strong></span>
+                                  <span>경계<strong className="text-alert">{(jisa.counts?.alert || 0).toLocaleString()}</strong></span>
+                                  <span>심각<strong className="text-severe">{(jisa.counts?.severe || 0).toLocaleString()}</strong></span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 모바일용 저수지 리스트 */}
+                          {selectedJisaDetail?.name === jisa.name && (
+                            <div className="mobile-res-list">
+                              {data.allReservoirs
+                                .filter(r => r.bonbu === selectedBonbu && r.jisa === selectedJisaDetail.name)
+                                .map(res => {
+                                  let rStatusClass = 'status-safe';
+                                  if(res.riskClass === 'severe') rStatusClass = 'status-alert';
+                                  else if(res.riskClass === 'warn' || res.riskClass === 'alert') rStatusClass = 'status-warn';
+                    
+                                  return (
+                                    <div key={`mobile-res-${res.name}`} className="res-item">
+                                      <span className="res-name">💧 {res.name}</span>
+                                      <div>
+                                        <span className={`res-status ${rStatusClass}`}>{res.riskStr}</span>
+                                        <span className="res-rate">{res.rate}%</span>
+                                      </div>
+                                    </div>
+                                  )
+                              })}
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                )}
+              </React.Fragment>
               );
             })
           }
