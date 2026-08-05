@@ -29,6 +29,8 @@ const PATH_DROPLET = "M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 12 2 12 2C12
 function App() {
   const [data, setData] = useState({ national: null, bonbuList: [], jisaMap: {}, allReservoirs: [] });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [nextRefreshSec, setNextRefreshSec] = useState(600);
   const [selectedBonbu, setSelectedBonbu] = useState(null);
   const [selectedJisa, setSelectedJisa] = useState(null);
   const [hoveredJisa, setHoveredJisa] = useState(null);
@@ -78,8 +80,13 @@ function App() {
     }
   }, []);
 
-  useEffect(() => {
-    fetch(SHEET_CSV_URL)
+  const fetchData = useCallback((isFirstLoad = false) => {
+    if (isFirstLoad) setLoading(true);
+    else setRefreshing(true);
+
+    // 캐시 우회를 위해 타임스탬프 파라미터 추가
+    const url = `${SHEET_CSV_URL}&t=${Date.now()}`;
+    fetch(url)
       .then(res => res.text())
       .then(csvText => {
         const lines = csvText.split('\n').filter(line => line.trim() !== '');
@@ -175,10 +182,25 @@ function App() {
         }
         setData({ national: natData, bonbuList: Object.values(bMap), jisaMap: jMap, allReservoirs: resArr });
         setUpdateTime(new Date().toLocaleString());
-        setLoading(false);
+        setNextRefreshSec(600);
       })
-      .catch(err => { console.error("로딩 실패:", err); setLoading(false); });
+      .catch(err => { console.error("로딩 실패:", err); })
+      .finally(() => { setLoading(false); setRefreshing(false); });
   }, []);
+
+  useEffect(() => {
+    fetchData(true);
+    // 10분(600초)마다 자동 갱신
+    const autoRefreshTimer = setInterval(() => fetchData(false), 600_000);
+    // 1초마다 카운트다운
+    const countdownTimer = setInterval(() => {
+      setNextRefreshSec(s => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => {
+      clearInterval(autoRefreshTimer);
+      clearInterval(countdownTimer);
+    };
+  }, [fetchData]);
 
   // 마커 아이콘 생성 함수 (지사 vs 저수지 구분)
   const getMarkerIcon = (type, riskClass, zoomLevel) => {
@@ -390,6 +412,26 @@ function App() {
 
         <div className="header-right">
           <span className="header-badge">업데이트: {updateTime}</span>
+          <span className="header-badge refresh-countdown">
+            {refreshing ? (
+              <span className="refresh-spinning">🔄 갱신 중...</span>
+            ) : (
+              <>
+                다음 갱신까지{' '}
+                <strong>
+                  {String(Math.floor(nextRefreshSec / 60)).padStart(2, '0')}:{String(nextRefreshSec % 60).padStart(2, '0')}
+                </strong>
+              </>
+            )}
+          </span>
+          <button
+            className="header-refresh-btn"
+            onClick={() => { fetchData(false); setNextRefreshSec(600); }}
+            disabled={refreshing}
+            title="지금 즉시 데이터 갱신"
+          >
+            {refreshing ? '⏳' : '↺'} 수동 갱신
+          </button>
         </div>
       </header>
 

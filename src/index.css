@@ -74,7 +74,9 @@ body {
 
 .header-right {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 .header-badge {
@@ -85,6 +87,54 @@ body {
   font-size: 0.8rem;
   font-weight: 600;
   border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.refresh-countdown {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+  min-width: 110px;
+  text-align: center;
+}
+
+.refresh-countdown strong {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.refresh-spinning {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-refresh-btn {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.header-refresh-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.4);
+  color: #c7d2fe;
+  transform: scale(1.05);
+}
+
+.header-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 헤더 전국 종합 요약 */
