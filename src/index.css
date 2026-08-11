@@ -287,33 +287,44 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-  padding: 4px 10px;
+  padding: 4px 6px;
+  white-space: nowrap;
 }
 
 .card-right-top {
   display: flex;
   justify-content: space-between;
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .card-right-bottom {
   background: rgba(255,255,255,0.9); 
   border-radius: 4px;
   color: #333;
-  padding: 4px 6px;
+  padding: 3px 4px;
+  white-space: nowrap;
 }
 
 .risk-summary {
   display: flex;
   justify-content: space-between;
-  font-size: 0.95rem;
+  font-size: 0.84rem;
   font-weight: 600;
+  white-space: nowrap;
+  gap: 2px;
+}
+
+.risk-summary span {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
 }
 
 .risk-summary strong {
-  font-size: 1.15rem;
-  margin-left: 2px;
+  font-size: 1.02rem;
+  margin-left: 1px;
 }
 
 .text-safe { color: #0066ff; }
@@ -349,7 +360,7 @@ body {
   position: absolute;
   top: 100px;
   left: 510px; /* 사이드바 넓어진 만큼 밀어냄 */
-  z-index: 9;
+  z-index: 1000;
   width: 480px; /* 지사 카드도 본부 카드와 동일한 폭 적용 */
   height: calc(100vh - 120px);
   display: flex;
@@ -380,7 +391,7 @@ body {
   position: absolute;
   top: 100px;
   right: 20px;
-  z-index: 10;
+  z-index: 1100; /* 꺾은선 그래프(z-index: 500) 및 모든 레이어보다 최상위 앞단 표출 */
   width: 360px;
   height: calc(100vh - 120px);
   display: flex;
@@ -715,4 +726,54 @@ body {
   }
 
   /* 모바일 툴팁 중앙/하단 배치 제거 (데스크탑과 동일하게 지도 마커 옆에 표시) */
+}
+
+/* ── 우측 트렌드 패널 (꺾은선 그래프 4박스) ─────────────────── */
+.trend-panels {
+  position: fixed;
+  top: 95px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 500;
+  pointer-events: none;
+}
+
+.trend-box {
+  pointer-events: auto;
+  width: 300px;
+  padding: 8px 12px 10px;
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  background: rgba(10, 15, 28, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.55);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trend-box:hover {
+  transform: translateX(-3px);
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.7);
+}
+
+.trend-box-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.trend-box-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.trend-box-sub {
+  font-size: 0.68rem;
+  color: #6b7280;
 }

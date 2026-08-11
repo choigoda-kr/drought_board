@@ -3,6 +3,8 @@ import { GoogleMap, LoadScript, Marker, InfoWindow, MarkerClusterer, OverlayView
 import AgentationClient from './components/AgentationClient';
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSoyFDRrMUP7nCIqMVPCHiVxBxC5evqUfwmMhpq_zVUznEuaqor2Lnb0wMLnlWYlIIihf8_7oMSamDQ/pub?output=csv';
+// 요약스냅샷 시트 공개 CSV URL (시트 게시 후 대표님이 확인 필요)
+const SUMMARY_SNAPSHOT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSoyFDRrMUP7nCIqMVPCHiVxBxC5evqUfwmMhpq_zVUznEuaqor2Lnb0wMLnlWYlIIihf8_7oMSamDQ/pub?gid=1133508969&single=true&output=csv';
 const MAPS_API_KEY = 'AIzaSyCCJuqCzR1TyMz86V8AWUUnu9MB7vbjncI';
 
 const mapContainerStyle = { width: '100%', height: '100%' };
@@ -26,8 +28,117 @@ function parseCSVRow(str) {
 const PATH_BUILDING = "M4 22V10L12 2L20 10V22H4Z"; // 심플한 집 모양
 const PATH_DROPLET = "M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 12 2 12 2C12 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"; // 물방울 모양
 
+// ── 증감 표시 헬퍼 ──────────────────────────────────────────
+function DeltaBadge({ value, unit = '', isInteger = false }) {
+  if (value === null || value === undefined || isNaN(value)) return null;
+  const num = parseFloat(value);
+  if (num === 0) return <span style={{ color: '#9ca3af', fontSize: '0.78em', marginLeft: 2, fontWeight: 500 }}>(-)</span>;
+  const up = num > 0;
+  const valStr = isInteger ? Math.abs(Math.round(num)).toLocaleString() : Math.abs(num).toFixed(1);
+  return (
+    <span style={{
+      color: up ? '#60a5fa' : '#f87171',
+      fontSize: '0.78em',
+      marginLeft: 2,
+      fontWeight: 600,
+      letterSpacing: '-0.02em'
+    }}>
+      ({up ? '▲' : '▼'}{valStr}{unit})
+    </span>
+  );
+}
+
+// ── SVG 꺾은선 그래프 (우측 패널용) ────────────────────────
+function SparkLine({ data, color, label }) {
+  const W = 270, H = 95, PAD = { t: 18, r: 16, b: 22, l: 16 };
+  const innerW = W - PAD.l - PAD.r;
+  const innerH = H - PAD.t - PAD.b;
+
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height: H, color:'#6b7280', fontSize:'0.8rem' }}>
+        데이터 수집 중...
+      </div>
+    );
+  }
+
+  const vals = data.map(d => d.value);
+  const realMax = Math.max(...vals, 1);
+  const realMin = Math.min(...vals);
+  const diff = realMax - realMin;
+  const margin = Math.max(diff * 0.4, 4); // 상하단 40% 여유 마진으로 변화 폭 완화
+  const maxV = realMax + margin;
+  const minV = Math.max(0, realMin - margin);
+  const range = maxV - minV || 1;
+
+  const toX = i => PAD.l + (i / (data.length - 1 || 1)) * innerW;
+  const toY = v => PAD.t + innerH - ((v - minV) / range) * innerH;
+
+  const polyline = data.map((d, i) => `${toX(i)},${toY(d.value)}`).join(' ');
+  const fillPath = `M${toX(0)},${toY(data[0].value)} ` +
+    data.map((d, i) => `L${toX(i)},${toY(d.value)}`).join(' ') +
+    ` L${toX(data.length - 1)},${PAD.t + innerH} L${toX(0)},${PAD.t + innerH} Z`;
+
+  return (
+    <svg width={W} height={H} style={{ overflow: 'visible', display: 'block', margin: '0 auto' }}>
+      <defs>
+        <linearGradient id={`grad-${label}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+        </linearGradient>
+      </defs>
+
+      {/* 면적 채우기 */}
+      <path d={fillPath} fill={`url(#grad-${label})`} />
+
+      {/* 꺾은선 */}
+      <polyline points={polyline} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* 데이터 포인트 + 상단 수치(값) 상시 표시 */}
+      {data.map((d, i) => {
+        const cx = toX(i);
+        const cy = toY(d.value);
+        return (
+          <g key={i}>
+            <circle cx={cx} cy={cy} r={3} fill="#ffffff" stroke={color} strokeWidth="1.5" />
+            <text x={cx} y={cy - 7} textAnchor="middle" fill="#e2e8f0" fontSize="9.5" fontWeight="700">
+              {d.value.toLocaleString()}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* X축 날짜 라벨 (데이터값과 100% 동일한 폰트, 크기, 굵기, 색상) */}
+      {data.map((d, i) => (
+        <text key={i} x={toX(i)} y={H - 3} textAnchor="middle" fill="#e2e8f0" fontSize="9.5" fontWeight="700">
+          {d.date.slice(5)}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// ── 가뭄위험 단일 판정 헬퍼 (Code.gs와 100% 동일) ───────────────────
+function classifyDroughtRisk(riskStr, normalComp) {
+  const rStr = (riskStr || '').toString().trim();
+  if (rStr === '심각') return 'severe';
+  if (rStr === '경계') return 'alert';
+  if (rStr === '주의') return 'warn';
+  if (rStr === '관심') return 'safe';
+
+  const comp = parseFloat(normalComp);
+  if (!isNaN(comp) && comp > 0) {
+    if (comp > 60) return 'safe';
+    if (comp > 50) return 'warn';
+    if (comp > 40) return 'alert';
+    return 'severe';
+  }
+  return 'safe'; // 결측치는 기본 관심(safe)으로 귀속
+}
+
 function App() {
   const [data, setData] = useState({ national: null, bonbuList: [], jisaMap: {}, allReservoirs: [] });
+  const [snapshotRows, setSnapshotRows] = useState([]); // 요약스냅샷 CSV 파싱 결과
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nextRefreshSec, setNextRefreshSec] = useState(600);
@@ -100,6 +211,7 @@ function App() {
           const bonbuCol = (row[0] || '').trim();
           const jisaCol = (row[1] || '').trim();
           const crRate = parseFloat(row[6]);
+          const crChange = parseFloat(row[7]); // 변화율(%) = 현재-전일
           const nrRate = parseFloat(row[8]);
           const perRate = parseFloat(row[9]); // 평년대비
           const riskLevel = row[13]; 
@@ -107,7 +219,7 @@ function App() {
           let lng = parseFloat(row[15]);
 
           if (bonbuCol.startsWith('전국') && jisaCol.includes('전체 평균')) {
-            natData = { cr_rate: crRate, nr_rate: nrRate, per_rate: perRate, counts: { safe: 0, warn: 0, alert: 0, severe: 0 } };
+            natData = { cr_rate: crRate, cr_change: isNaN(crChange) ? 0 : crChange, nr_rate: nrRate, per_rate: perRate, counts: { safe: 0, warn: 0, alert: 0, severe: 0 } };
             continue;
           }
 
@@ -115,7 +227,8 @@ function App() {
           if (bonbuCol.includes('개소') && jisaCol.includes('평균') && !jisaCol.includes('전체')) {
             const rawBonbu = bonbuCol.split(' ')[0]; 
             bMap[rawBonbu] = { 
-              name: rawBonbu, rate: crRate, nrRate: nrRate, perRate: perRate, riskStr: riskLevel,
+              name: rawBonbu, rate: crRate, crChange: isNaN(crChange) ? 0 : crChange,
+              nrRate: nrRate, perRate: perRate, riskStr: riskLevel,
               counts: { safe:0, warn:0, alert:0, severe:0 } // 관심/주의/경계/심각 갯수 카운터
             };
             if(!jMap[rawBonbu]) jMap[rawBonbu] = [];
@@ -125,10 +238,7 @@ function App() {
           // 2. 지사 요약
           if (bonbuCol.length > 0 && !bonbuCol.includes('개소') && bonbuCol !== '전국' && jisaCol.includes('평균')) {
             const rawName = jisaCol.split(' 평균')[0];
-            let riskClass = 'safe';
-            if (riskLevel === '심각') riskClass = 'severe';
-            else if (riskLevel === '경계') riskClass = 'alert';
-            else if (riskLevel === '주의') riskClass = 'warn';
+            const riskClass = classifyDroughtRisk(riskLevel, perRate);
 
             if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
               lat = 36.5; lng = 127.8; // 최후 방어
@@ -150,10 +260,7 @@ function App() {
             // 좌표가 0이거나 없는 놈은 버린다 (지도 밖으로 튕기는 것 방지)
             if (isNaN(lat) || isNaN(lng) || lat < 30 || lng < 120) continue;
 
-            let riskClass = 'safe'; // 기본은 관심(안전)
-            if (riskLevel === '심각') riskClass = 'severe';
-            else if (riskLevel === '경계') riskClass = 'alert';
-            else if (riskLevel === '주의') riskClass = 'warn';
+            const riskClass = classifyDroughtRisk(riskLevel, perRate);
 
             const effVol = parseFloat(row[4]) || 0;
             const curVol = parseFloat(row[5]) || 0;
@@ -186,6 +293,34 @@ function App() {
       })
       .catch(err => { console.error("로딩 실패:", err); })
       .finally(() => { setLoading(false); setRefreshing(false); });
+
+    // 요약스냅샷 CSV 병렬 fetch
+    const snapUrl = `${SUMMARY_SNAPSHOT_CSV_URL}&t=${Date.now()}`;
+    fetch(snapUrl)
+      .then(res => res.text())
+      .then(csvText => {
+        const lines = csvText.split('\n').filter(l => l.trim() !== '');
+        const parsed = [];
+        for (let i = 1; i < lines.length; i++) {
+          const r = parseCSVRow(lines[i]);
+          parsed.push({
+            date:    (r[0] || '').trim(),
+            gubun:   (r[1] || '').trim(),
+            bonbu:   (r[2] || '').trim(),
+            jisa:    (r[3] || '').trim(),
+            rate:    parseFloat(r[4]),
+            change:  parseFloat(r[5]),
+            perRate: parseFloat(r[6]),
+            safe:    parseInt(r[7]) || 0,
+            warn:    parseInt(r[8]) || 0,
+            alert:   parseInt(r[9]) || 0,
+            severe:  parseInt(r[10]) || 0,
+            total:   parseInt(r[11]) || 0,
+          });
+        }
+        setSnapshotRows(parsed);
+      })
+      .catch(err => console.warn('요약스냅샷 로딩 실패(URL 미설정 가능):', err));
   }, []);
 
   useEffect(() => {
@@ -261,6 +396,35 @@ function App() {
       res.lng >= mapBounds.swLng && res.lng <= mapBounds.neLng
     );
   }, [currentZoom, mapBounds, data.allReservoirs]);
+
+  // ── 스냅샷에서 전일 데이터 추출 헬퍼 ──────────────────────────
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const sortedDates = [...new Set(snapshotRows.map(r => r.date))].sort();
+  const todayIdx = sortedDates.indexOf(todayStr);
+  const prevDate = todayIdx > 0 ? sortedDates[todayIdx - 1] : (sortedDates.length > 0 ? null : null);
+  // 전일이 없을 경우 가장 최근 날짜를 전일로 간주
+  const prevDateFinal = prevDate || (sortedDates.length >= 2 ? sortedDates[sortedDates.length - 2] : null);
+
+  const getPrevNational = () => snapshotRows.find(r => r.date === prevDateFinal && r.gubun === '전국');
+  const getPrevBonbu = (bonbuName) => snapshotRows.find(r => r.date === prevDateFinal && r.gubun === '본부' && r.bonbu === bonbuName);
+  const getPrevJisa = (bonbuName, jisaName) => snapshotRows.find(r => r.date === prevDateFinal && r.gubun === '지사' && r.bonbu === bonbuName && r.jisa === jisaName);
+
+  // 그래프용: 날짜별 전국 요약 데이터 (최근 10일)
+  const getChartData = (field) =>
+    sortedDates.slice(-10).map(d => {
+      const row = snapshotRows.find(r => r.date === d && r.gubun === '전국');
+      return { date: d, value: row ? (row[field] || 0) : 0 };
+    });
+
+  const prevNat = getPrevNational();
+
+  // 가뭄단계 개소수 전일대비 계산
+  const natDelta = prevNat ? {
+    safe:   (data.national?.counts?.safe   || 0) - prevNat.safe,
+    warn:   (data.national?.counts?.warn   || 0) - prevNat.warn,
+    alert:  (data.national?.counts?.alert  || 0) - prevNat.alert,
+    severe: (data.national?.counts?.severe || 0) - prevNat.severe,
+  } : null;
 
   return (
     <>
@@ -397,15 +561,22 @@ function App() {
           {data.national && (
             <div className="header-national">
               <span className="header-national-label">전국 종합</span>
-              <span className="header-national-rate">저수율 <strong>{data.national.cr_rate}%</strong></span>
+              <span className="header-national-rate">
+                저수율 <strong>{data.national.cr_rate}%</strong>
+                <DeltaBadge value={data.national.cr_change} unit="" />
+              </span>
               <span className="header-national-rate">평년대비 <strong>{data.national.per_rate}%</strong></span>
               <span className="header-national-divider">│</span>
               <span className="header-national-counts">
                 총 <strong style={{color:'#fff'}}>{(data.national.counts.safe + data.national.counts.warn + data.national.counts.alert + data.national.counts.severe).toLocaleString()}</strong>{' '}
-                관심 <strong style={{color:'#0066ff'}}>{data.national.counts.safe.toLocaleString()}</strong>{' '}
-                주의 <strong style={{color:'#ffcc00'}}>{data.national.counts.warn.toLocaleString()}</strong>{' '}
-                경계 <strong style={{color:'#ff6600'}}>{data.national.counts.alert.toLocaleString()}</strong>{' '}
+                관심 <strong style={{color:'#0066ff'}}>{data.national.counts.safe.toLocaleString()}</strong>
+                {natDelta && <DeltaBadge value={natDelta.safe} isInteger={true} />}{' '}
+                주의 <strong style={{color:'#ffcc00'}}>{data.national.counts.warn.toLocaleString()}</strong>
+                {natDelta && <DeltaBadge value={natDelta.warn} isInteger={true} />}{' '}
+                경계 <strong style={{color:'#ff6600'}}>{data.national.counts.alert.toLocaleString()}</strong>
+                {natDelta && <DeltaBadge value={natDelta.alert} isInteger={true} />}{' '}
                 심각 <strong style={{color:'#ff0000'}}>{data.national.counts.severe.toLocaleString()}</strong>
+                {natDelta && <DeltaBadge value={natDelta.severe} isInteger={true} />}
               </span>
             </div>
           )}
@@ -413,18 +584,6 @@ function App() {
 
         <div className="header-right">
           <span className="header-badge">업데이트: {updateTime}</span>
-          <span className="header-badge refresh-countdown">
-            {refreshing ? (
-              <span className="refresh-spinning">🔄 갱신 중...</span>
-            ) : (
-              <>
-                다음 갱신까지{' '}
-                <strong>
-                  {String(Math.floor(nextRefreshSec / 60)).padStart(2, '0')}:{String(nextRefreshSec % 60).padStart(2, '0')}
-                </strong>
-              </>
-            )}
-          </span>
         </div>
       </header>
 
@@ -451,17 +610,28 @@ function App() {
                   </div>
                   <div className="card-right">
                     <div className="card-right-top">
-                      <span>현재 <strong>{bonbu.rate}%</strong></span>
+                      <span>현재 <strong>{bonbu.rate}%</strong><DeltaBadge value={bonbu.crChange} /></span>
                       <span>평년대비 <strong>{bonbu.perRate > 0 ? bonbu.perRate.toFixed(1) : '0.0'}%</strong></span>
                     </div>
                     <div className="card-right-bottom">
-                      <div className="risk-summary">
-                        <span>총<strong>{(bonbu.counts.safe + bonbu.counts.warn + bonbu.counts.alert + bonbu.counts.severe).toLocaleString()}</strong></span>
-                        <span>관심<strong className="text-safe">{bonbu.counts.safe.toLocaleString()}</strong></span>
-                        <span>주의<strong className="text-warn">{bonbu.counts.warn.toLocaleString()}</strong></span>
-                        <span>경계<strong className="text-alert">{bonbu.counts.alert.toLocaleString()}</strong></span>
-                        <span>심각<strong className="text-severe">{bonbu.counts.severe.toLocaleString()}</strong></span>
-                      </div>
+                      {(() => {
+                        const prevB = getPrevBonbu(bonbu.name);
+                        const bd = prevB ? {
+                          safe:   bonbu.counts.safe   - prevB.safe,
+                          warn:   bonbu.counts.warn   - prevB.warn,
+                          alert:  bonbu.counts.alert  - prevB.alert,
+                          severe: bonbu.counts.severe - prevB.severe,
+                        } : null;
+                        return (
+                          <div className="risk-summary">
+                            <span>총<strong>{(bonbu.counts.safe + bonbu.counts.warn + bonbu.counts.alert + bonbu.counts.severe).toLocaleString()}</strong></span>
+                            <span>관심<strong className="text-safe">{bonbu.counts.safe.toLocaleString()}</strong>{bd && <DeltaBadge value={bd.safe} isInteger={true} />}</span>
+                            <span>주의<strong className="text-warn">{bonbu.counts.warn.toLocaleString()}</strong>{bd && <DeltaBadge value={bd.warn} isInteger={true} />}</span>
+                            <span>경계<strong className="text-alert">{bonbu.counts.alert.toLocaleString()}</strong>{bd && <DeltaBadge value={bd.alert} isInteger={true} />}</span>
+                            <span>심각<strong className="text-severe">{bonbu.counts.severe.toLocaleString()}</strong>{bd && <DeltaBadge value={bd.severe} isInteger={true} />}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -484,21 +654,34 @@ function App() {
                               <h3 style={{fontSize: '0.9rem'}}>{jisa.name}</h3>
                               <div className={`overall-risk ${jRiskStatusClass}`}>{jisa.riskStr}</div>
                             </div>
-                            <div className="card-right">
-                              <div className="card-right-top" style={{fontSize: '0.95rem'}}>
-                                <span>현재 <strong>{jisa.rate}%</strong></span>
-                                <span>평년대비 <strong>{jisa.perRate > 0 ? jisa.perRate.toFixed(1) : '0.0'}%</strong></span>
-                              </div>
-                              <div className="card-right-bottom" style={{fontSize: '0.85rem'}}>
-                                <div className="risk-summary">
-                                  <span>총<strong>{((jisa.counts?.safe || 0) + (jisa.counts?.warn || 0) + (jisa.counts?.alert || 0) + (jisa.counts?.severe || 0)).toLocaleString()}</strong></span>
-                                  <span>관심<strong className="text-safe">{(jisa.counts?.safe || 0).toLocaleString()}</strong></span>
-                                  <span>주의<strong className="text-warn">{(jisa.counts?.warn || 0).toLocaleString()}</strong></span>
-                                  <span>경계<strong className="text-alert">{(jisa.counts?.alert || 0).toLocaleString()}</strong></span>
-                                  <span>심각<strong className="text-severe">{(jisa.counts?.severe || 0).toLocaleString()}</strong></span>
+                            {(() => {
+                              const prevJ = getPrevJisa(bonbu.name, jisa.name);
+                              const jd = prevJ ? {
+                                safe:   (jisa.counts?.safe || 0)   - prevJ.safe,
+                                warn:   (jisa.counts?.warn || 0)   - prevJ.warn,
+                                alert:  (jisa.counts?.alert || 0)  - prevJ.alert,
+                                severe: (jisa.counts?.severe || 0) - prevJ.severe,
+                              } : null;
+                              const rateDiff = jisa.change !== undefined ? jisa.change : (prevJ ? jisa.rate - prevJ.rate : null);
+
+                              return (
+                                <div className="card-right">
+                                  <div className="card-right-top" style={{fontSize: '0.95rem'}}>
+                                    <span>현재 <strong>{jisa.rate}%</strong><DeltaBadge value={rateDiff} /></span>
+                                    <span>평년대비 <strong>{jisa.perRate > 0 ? jisa.perRate.toFixed(1) : '0.0'}%</strong></span>
+                                  </div>
+                                  <div className="card-right-bottom" style={{fontSize: '0.85rem'}}>
+                                    <div className="risk-summary">
+                                      <span>총<strong>{((jisa.counts?.safe || 0) + (jisa.counts?.warn || 0) + (jisa.counts?.alert || 0) + (jisa.counts?.severe || 0)).toLocaleString()}</strong></span>
+                                      <span>관심<strong className="text-safe">{(jisa.counts?.safe || 0).toLocaleString()}</strong>{jd && <DeltaBadge value={jd.safe} isInteger={true} />}</span>
+                                      <span>주의<strong className="text-warn">{(jisa.counts?.warn || 0).toLocaleString()}</strong>{jd && <DeltaBadge value={jd.warn} isInteger={true} />}</span>
+                                      <span>경계<strong className="text-alert">{(jisa.counts?.alert || 0).toLocaleString()}</strong>{jd && <DeltaBadge value={jd.alert} isInteger={true} />}</span>
+                                      <span>심각<strong className="text-severe">{(jisa.counts?.severe || 0).toLocaleString()}</strong>{jd && <DeltaBadge value={jd.severe} isInteger={true} />}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
+                              );
+                            })()}
                           </div>
 
                           {/* 모바일용 저수지 리스트 */}
@@ -557,21 +740,34 @@ function App() {
                   <h3>{jisa.name}</h3>
                   <div className={`overall-risk ${bRiskStatusClass}`}>{jisa.riskStr}</div>
                 </div>
-                <div className="card-right">
-                  <div className="card-right-top">
-                    <span>현재 <strong>{jisa.rate}%</strong></span>
-                    <span>평년대비 <strong>{jisa.perRate > 0 ? jisa.perRate.toFixed(1) : '0.0'}%</strong></span>
-                  </div>
-                  <div className="card-right-bottom">
-                    <div className="risk-summary">
-                      <span>총<strong>{((jisa.counts?.safe || 0) + (jisa.counts?.warn || 0) + (jisa.counts?.alert || 0) + (jisa.counts?.severe || 0)).toLocaleString()}</strong></span>
-                      <span>관심<strong className="text-safe">{(jisa.counts?.safe || 0).toLocaleString()}</strong></span>
-                      <span>주의<strong className="text-warn">{(jisa.counts?.warn || 0).toLocaleString()}</strong></span>
-                      <span>경계<strong className="text-alert">{(jisa.counts?.alert || 0).toLocaleString()}</strong></span>
-                      <span>심각<strong className="text-severe">{(jisa.counts?.severe || 0).toLocaleString()}</strong></span>
+                {(() => {
+                  const prevJ = getPrevJisa(selectedBonbu, jisa.name);
+                  const jd = prevJ ? {
+                    safe:   (jisa.counts?.safe || 0)   - prevJ.safe,
+                    warn:   (jisa.counts?.warn || 0)   - prevJ.warn,
+                    alert:  (jisa.counts?.alert || 0)  - prevJ.alert,
+                    severe: (jisa.counts?.severe || 0) - prevJ.severe,
+                  } : null;
+                  const rateDiff = jisa.change !== undefined ? jisa.change : (prevJ ? jisa.rate - prevJ.rate : null);
+
+                  return (
+                    <div className="card-right">
+                      <div className="card-right-top">
+                        <span>현재 <strong>{jisa.rate}%</strong><DeltaBadge value={rateDiff} /></span>
+                        <span>평년대비 <strong>{jisa.perRate > 0 ? jisa.perRate.toFixed(1) : '0.0'}%</strong></span>
+                      </div>
+                      <div className="card-right-bottom">
+                        <div className="risk-summary">
+                          <span>총<strong>{((jisa.counts?.safe || 0) + (jisa.counts?.warn || 0) + (jisa.counts?.alert || 0) + (jisa.counts?.severe || 0)).toLocaleString()}</strong></span>
+                          <span>관심<strong className="text-safe">{(jisa.counts?.safe || 0).toLocaleString()}</strong>{jd && <DeltaBadge value={jd.safe} isInteger={true} />}</span>
+                          <span>주의<strong className="text-warn">{(jisa.counts?.warn || 0).toLocaleString()}</strong>{jd && <DeltaBadge value={jd.warn} isInteger={true} />}</span>
+                          <span>경계<strong className="text-alert">{(jisa.counts?.alert || 0).toLocaleString()}</strong>{jd && <DeltaBadge value={jd.alert} isInteger={true} />}</span>
+                          <span>심각<strong className="text-severe">{(jisa.counts?.severe || 0).toLocaleString()}</strong>{jd && <DeltaBadge value={jd.severe} isInteger={true} />}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -603,6 +799,24 @@ function App() {
               )
           })}
         </div>
+      </div>
+
+      {/* 우측 4개 박스 — 최근 10일 꺾은선 그래프 */}
+      <div className="trend-panels">
+        {[
+          { label: '심각', field: 'severe', color: '#ef4444' },
+          { label: '경계', field: 'alert',  color: '#f97316' },
+          { label: '주의', field: 'warn',   color: '#f59e0b' },
+          { label: '관심', field: 'safe',   color: '#3b82f6' },
+        ].map(({ label, field, color }) => (
+          <div key={field} className="trend-box glass-panel">
+            <div className="trend-box-header" style={{ borderColor: color }}>
+              <span className="trend-box-title" style={{ color }}>{label} 추이</span>
+              <span className="trend-box-sub">최근 10일 (전국)</span>
+            </div>
+            <SparkLine data={getChartData(field)} color={color} label={field} />
+          </div>
+        ))}
       </div>
     </>
   );
