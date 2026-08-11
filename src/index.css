@@ -726,6 +726,33 @@ body {
   }
 
   /* 모바일 툴팁 중앙/하단 배치 제거 (데스크탑과 동일하게 지도 마커 옆에 표시) */
+  
+  /* 모바일 화면(768px 이하): 꺾은선 그래프 패널을 표 하단/지도 위 하단 가로 슬라이더로 배치 */
+  .trend-panels {
+    top: auto !important;
+    bottom: 12px !important;
+    left: 12px !important;
+    right: 12px !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    padding-bottom: 6px;
+    z-index: 600 !important;
+    gap: 10px !important;
+  }
+
+  .trend-panels::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .trend-panels::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+  }
+
+  .trend-box {
+    flex: 0 0 260px !important;
+    width: 260px !important;
+  }
 }
 
 /* ── 우측 트렌드 패널 (꺾은선 그래프 4박스) ─────────────────── */
