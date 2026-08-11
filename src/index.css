@@ -257,8 +257,10 @@ body {
 
 .card-left {
   background: #0f354a;
-  width: 80px;
-  padding: 4px 4px;
+  width: 85px;
+  flex: 0 0 85px; /* flex 축소 방지하여 수직 오와열 100% 칼정렬 */
+  box-sizing: border-box;
+  padding: 4px 2px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -271,15 +273,18 @@ body {
   font-weight: 800;
   margin-bottom: 2px;
   text-align: center;
+  white-space: nowrap;
 }
 
 /* 칩(Chip) 모양 디자인 개선 */
 .overall-risk {
   font-size: 0.75rem;
   font-weight: 800;
-  padding: 3px 8px;
+  padding: 2px 8px;
   border-radius: 12px;
   display: inline-block;
+  white-space: nowrap; /* 글자 줄바꿈 100% 방지 */
+  text-align: center;
 }
 
 .card-right {
@@ -480,72 +485,76 @@ body {
   border: 1px solid rgba(255,255,255,0.1);
 }
 
-/* 커스텀 지사 툴팁 (가로형) */
+/* 커스텀 지사 툴팁 (화이트 바탕 컴팩트 세로 수직 카드) */
 .custom-jisa-tooltip {
   position: absolute;
-  left: 40px; /* 마커 우측으로 띄움 */
-  top: -24px; /* 높이 중앙 정렬 보정 */
-  background: white;
-  border-radius: 8px;
-  padding: 8px 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  left: 35px;
+  top: -30px;
+  width: 250px;
+  background: #ffffff !important;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25) !important;
   display: flex;
-  gap: 12px;
-  align-items: center;
-  white-space: nowrap;
-  font-family: sans-serif;
-  color: #1f2937;
-  border: 1px solid #e5e7eb;
+  flex-direction: column;
+  gap: 8px;
+  white-space: normal;
+  color: #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
+  z-index: 1000;
 }
-/* 좌측 뾰족한 꼬리 */
+/* 좌측 뾰족한 화이트 꼬리 */
 .custom-jisa-tooltip::before {
   content: "";
   position: absolute;
   left: -8px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 20px;
   border-width: 8px 8px 8px 0;
   border-style: solid;
-  border-color: transparent white transparent transparent;
+  border-color: transparent #ffffff transparent transparent !important;
 }
 .tooltip-header {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0 !important;
 }
 .tooltip-header .title {
   font-weight: 800;
   font-size: 15px;
+  color: #0f172a !important;
 }
 .tooltip-body {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-left: 12px;
-  border-left: 1px solid #e5e7eb;
-}
-.tooltip-stat {
-  display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+  padding-left: 0;
+  border-left: none;
+}
+.tooltip-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 12px;
+  background: #f8fafc !important;
+  border: 1px solid #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 6px;
 }
-.tooltip-stat span { color: #6b7280; }
-.tooltip-stat strong { font-size: 14px; }
-.tooltip-divider {
-  width: 1px;
-  height: 24px;
-  background-color: #e5e7eb;
-}
+.tooltip-stat-row span { color: #64748b !important; }
+.tooltip-stat-row strong { font-size: 13px; color: #0f172a !important; }
+
 .tooltip-counts {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: 11.5px;
 }
 .counts-row {
   display: flex;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 4px;
   font-size: 11px;
 }
 
@@ -725,58 +734,167 @@ body {
     padding: 8px;
   }
 
-  /* 모바일 툴팁 중앙/하단 배치 제거 (데스크탑과 동일하게 지도 마커 옆에 표시) */
-  
-  /* 모바일 화면(768px 이하): 꺾은선 그래프 패널을 표 하단/지도 위 하단 가로 슬라이더로 배치 */
+  /* 모바일 화면(768px 이하): 꺾은선 그래프 패널을 표 하단(order 3) & 지도 위(order 4) 세로 1열 100% 꽉 찬 배치 */
   .trend-panels {
+    position: relative !important;
     top: auto !important;
-    bottom: 12px !important;
-    left: 12px !important;
-    right: 12px !important;
-    flex-direction: row !important;
-    overflow-x: auto !important;
-    padding-bottom: 6px;
-    z-index: 600 !important;
-    gap: 10px !important;
-  }
-
-  .trend-panels::-webkit-scrollbar {
-    height: 4px;
-  }
-
-  .trend-panels::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 2px;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    order: 3 !important;
+    width: 100% !important;
+    margin: 10px 0 !important;
+    padding: 10px !important;
+    flex-direction: column !important;
+    overflow-x: visible !important;
+    z-index: 10 !important;
+    pointer-events: auto !important;
+    gap: 12px !important;
   }
 
   .trend-box {
-    flex: 0 0 260px !important;
-    width: 260px !important;
+    flex: none !important;
+    width: 100% !important;
   }
 }
 
 /* ── 우측 트렌드 패널 (꺾은선 그래프 4박스) ─────────────────── */
 .trend-panels {
   position: fixed;
-  top: 95px;
+  top: 85px;
+  bottom: 90px; /* 지도 확대/축소 (+/-) 버튼 바로 위까지 꽉 차게 배치 */
   right: 14px;
+  width: 300px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   z-index: 500;
   pointer-events: none;
 }
 
+/* 화면 우측 하단 세로 표 형태 가뭄해소 예측 아이콘 범례 (Legend) - 컴팩트 화이트 */
+.drought-legend-vertical-card {
+  position: absolute;
+  bottom: 20px;
+  right: 360px;
+  left: auto;
+  transform: none;
+  z-index: 100;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  min-width: fit-content;
+  font-family: inherit;
+}
+.legend-card-header {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  text-align: center;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
+  letter-spacing: -0.3px;
+}
+.legend-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.legend-table td {
+  padding: 2.5px 0;
+  vertical-align: middle;
+}
+.legend-table .badge-col {
+  width: 68px;
+}
+.legend-table .badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.legend-table .badge.relief {
+  background: #ecfeff;
+  color: #0891b2;
+  border: 1px solid #67e8f9;
+}
+.legend-table .badge.partial {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fcd34d;
+}
+.legend-table .badge.severe {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fda4af;
+}
+.legend-table .desc-col {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  padding-left: 6px;
+  white-space: nowrap;
+}
+.legend-footer-note {
+  font-size: 10px;
+  color: #64748b;
+  text-align: center !important;
+  margin-top: 5px;
+  font-weight: 600;
+}
+
+/* 지도 지사 마커 우상단 겹침 해갈 뱃지 칩 (1안 3D 글로우 도트) */
+.map-jisa-badge-overlay {
+  background: #ffffff;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  font-size: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  border: 1.5px solid #ffffff;
+  transform: translate(12px, -12px);
+}
+.map-jisa-badge-overlay.relief {
+  background: #ecfeff;
+  color: #0891b2;
+  border-color: #06b6d4;
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.7);
+}
+.map-jisa-badge-overlay.partial {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+}
+.map-jisa-badge-overlay.severe {
+  background: #fff1f2;
+  color: #e11d48;
+  border-color: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
+}
+
 .trend-box {
   pointer-events: auto;
-  width: 300px;
-  padding: 8px 12px 10px;
-  border-left: 3px solid transparent;
+  flex: 1; /* 4개 차트 박스가 세로 공간을 균등하게 꽉 채움 */
+  width: 100%;
+  padding: 10px 14px 8px;
+  border-left: 4px solid transparent;
   border-radius: 10px;
-  background: rgba(10, 15, 28, 0.82);
+  background: rgba(10, 15, 28, 0.85);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -789,18 +907,90 @@ body {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 6px;
-  padding-bottom: 5px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  margin-bottom: 2px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .trend-box-title {
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.95rem;
+  font-weight: 800;
   letter-spacing: 0.02em;
 }
 
 .trend-box-sub {
-  font-size: 0.68rem;
-  color: #6b7280;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+/* 화면 하단 가뭄 해갈 예측 범례 (Legend) */
+.drought-legend-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 280px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.92) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 6px 14px;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  font-size: 11.5px;
+  color: #e2e8f0;
+}
+.legend-title {
+  font-weight: 800;
+  color: #38bdf8;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  padding-right: 10px;
+}
+.legend-items {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #cbd5e1;
+}
+.legend-item .badge {
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.legend-item.relief .badge {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #1d4ed8;
+}
+.legend-item.partial .badge {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #b45309;
+}
+.legend-item.severe .badge {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #b91c1c;
+}
+@media (max-width: 768px) {
+  .drought-legend-bar {
+    left: 10px;
+    bottom: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 6px 10px;
+  }
+  .legend-title {
+    border-right: none;
+    padding-right: 0;
+  }
 }

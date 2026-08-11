@@ -304,18 +304,22 @@ function App() {
         for (let i = 1; i < lines.length; i++) {
           const r = parseCSVRow(lines[i]);
           parsed.push({
-            date:    (r[0] || '').trim(),
-            gubun:   (r[1] || '').trim(),
-            bonbu:   (r[2] || '').trim(),
-            jisa:    (r[3] || '').trim(),
-            rate:    parseFloat(r[4]),
-            change:  parseFloat(r[5]),
-            perRate: parseFloat(r[6]),
-            safe:    parseInt(r[7]) || 0,
-            warn:    parseInt(r[8]) || 0,
-            alert:   parseInt(r[9]) || 0,
-            severe:  parseInt(r[10]) || 0,
-            total:   parseInt(r[11]) || 0,
+            date:         (r[0] || '').trim(),
+            gubun:        (r[1] || '').trim(),
+            bonbu:        (r[2] || '').trim(),
+            jisa:         (r[3] || '').trim(),
+            rate:         parseFloat(r[4]),
+            change:       parseFloat(r[5]),
+            perRate:      parseFloat(r[6]),
+            safe:         parseInt(r[7]) || 0,
+            warn:         parseInt(r[8]) || 0,
+            alert:        parseInt(r[9]) || 0,
+            severe:       parseInt(r[10]) || 0,
+            total:        parseInt(r[11]) || 0,
+            neededRain:   parseFloat(r[12]) || 0,
+            forecastRain: parseFloat(r[13]) || 0,
+            fulfillment:  parseFloat(r[14]) || 0,
+            reliefStatus: (r[15] || '').trim(),
           });
         }
         setSnapshotRows(parsed);
@@ -409,12 +413,17 @@ function App() {
   const getPrevBonbu = (bonbuName) => snapshotRows.find(r => r.date === prevDateFinal && r.gubun === '본부' && r.bonbu === bonbuName);
   const getPrevJisa = (bonbuName, jisaName) => snapshotRows.find(r => r.date === prevDateFinal && r.gubun === '지사' && r.bonbu === bonbuName && r.jisa === jisaName);
 
-  // 그래프용: 날짜별 전국 요약 데이터 (최근 10일)
-  const getChartData = (field) =>
-    sortedDates.slice(-10).map(d => {
+  // 그래프용: 날짜별 전국 요약 데이터 (최근 10일) - 최신 날짜는 실시간 집계 수치와 100% 동기화
+  const getChartData = (field) => {
+    const recentDates = sortedDates.slice(-10);
+    return recentDates.map((d, index) => {
+      if (index === recentDates.length - 1 && data.national?.counts && data.national.counts[field] !== undefined) {
+        return { date: d, value: data.national.counts[field] };
+      }
       const row = snapshotRows.find(r => r.date === d && r.gubun === '전국');
       return { date: d, value: row ? (row[field] || 0) : 0 };
     });
+  };
 
   const prevNat = getPrevNational();
 
@@ -459,24 +468,59 @@ function App() {
                   />
                 ))}
 
-                {/* 2. 그 위에 93개 지사 덮기 (건물) - 지사가 더 눈에 띄게 */}
-                {allJisas.map((jisa, idx) => (
-                  <Marker 
-                    key={`jisa-${idx}`} 
-                    position={{ lat: jisa.lat, lng: jisa.lng }} 
-                    icon={getMarkerIcon('jisa', jisa.riskClass, currentZoom)}
-                    onClick={() => setSelectedJisa(jisa)}
-                    onMouseOver={() => setHoveredJisa(jisa)}
-                    onMouseOut={() => setHoveredJisa(null)}
-                    zIndex={999}
-                    label={{
-                      text: `${jisa.name}`,
-                      color: '#ffffff',
-                      fontSize: '13px',
-                      className: `jisa-label jisa-label-${jisa.riskClass}`
-                    }}
-                  />
-                ))}
+                {/* 2. 그 위에 93개 지사 덮기 및 마커 옆 해갈 뱃지 겹침 표출 */}
+                {allJisas.map((jisa, idx) => {
+                  const isWarnOrAbove = jisa.riskClass === 'warn' || jisa.riskClass === 'alert' || jisa.riskClass === 'severe';
+                  const jSnap = isWarnOrAbove ? (
+                    snapshotRows.find(r => r.date === todayStr && r.gubun === '지사' && r.jisa === jisa.name) ||
+                    snapshotRows.find(r => r.gubun === '지사' && r.jisa === jisa.name)
+                  ) : null;
+                  
+                  let badgeIcon = '';
+                  let badgeClass = '';
+                  if (jSnap && jSnap.neededRain !== undefined) {
+                    const normRate = (jisa.perRate && jisa.perRate > 0) ? (jisa.rate / (jisa.perRate / 100)) : 65.0;
+                    const ratio = jSnap.neededRain > 0 ? Math.min(1.5, jSnap.forecastRain / jSnap.neededRain) : 1.0;
+                    const gap = Math.max(0, normRate - jisa.rate);
+                    const estRate = Math.min(100, jisa.rate + (gap * ratio));
+                    const predPerRate = Math.round((estRate / normRate) * 100);
+
+                    if (predPerRate > 60) { badgeIcon = '●'; badgeClass = 'relief'; }
+                    else if (predPerRate > 50) { badgeIcon = '●'; badgeClass = 'partial'; }
+                    else { badgeIcon = '●'; badgeClass = 'severe'; }
+                  }
+
+                  return (
+                    <React.Fragment key={`jisa-frag-${idx}`}>
+                      <Marker 
+                        key={`jisa-${idx}`} 
+                        position={{ lat: jisa.lat, lng: jisa.lng }} 
+                        icon={getMarkerIcon('jisa', jisa.riskClass, currentZoom)}
+                        onClick={() => setSelectedJisa(jisa)}
+                        onMouseOver={() => setHoveredJisa(jisa)}
+                        onMouseOut={() => setHoveredJisa(null)}
+                        zIndex={999}
+                        label={{
+                          text: jisa.name,
+                          color: '#ffffff',
+                          fontSize: '13px',
+                          className: `jisa-label jisa-label-${jisa.riskClass}`
+                        }}
+                      />
+                      {/* 지사 마커 우상단 겹침 해갈 뱃지 칩 */}
+                      {badgeIcon && (
+                        <OverlayView
+                          position={{ lat: jisa.lat + 0.02, lng: jisa.lng + 0.02 }}
+                          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                        >
+                          <div className={`map-jisa-badge-overlay ${badgeClass}`}>
+                            {badgeIcon}
+                          </div>
+                        </OverlayView>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </>
             )}
 
@@ -486,33 +530,93 @@ function App() {
                 mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
               >
                 <div className="custom-jisa-tooltip">
-                  <div className="tooltip-header">
-                    <span className="title">{(hoveredJisa || selectedJisa).name}</span>
-                    <span style={{ 
-                      fontWeight: 'bold', fontSize: '13px',
-                      color: (hoveredJisa || selectedJisa).riskClass === 'severe' ? '#ff0000' : 
-                             (hoveredJisa || selectedJisa).riskClass === 'alert' ? '#ff6600' : 
-                             (hoveredJisa || selectedJisa).riskClass === 'warn' ? '#ffcc00' : '#0066ff' 
-                    }}>
-                      {(hoveredJisa || selectedJisa).riskStr}
-                    </span>
-                  </div>
-                  <div className="tooltip-body">
-                    <div className="tooltip-stat"><span>저수율</span><strong>{(hoveredJisa || selectedJisa).rate}%</strong></div>
-                    <div className="tooltip-divider"></div>
-                    <div className="tooltip-stat"><span>평년대비</span><strong>{(hoveredJisa || selectedJisa).perRate}%</strong></div>
-                    <div className="tooltip-divider"></div>
-                    <div className="tooltip-counts">
-                      <div><strong>총 {(((hoveredJisa || selectedJisa).counts?.safe || 0) + (((hoveredJisa || selectedJisa).counts?.warn || 0)) + (((hoveredJisa || selectedJisa).counts?.alert || 0)) + (((hoveredJisa || selectedJisa).counts?.severe || 0))).toLocaleString()}개소</strong></div>
-                      <div className="counts-row">
-                        <span style={{color: '#0066ff'}}>관심 {((hoveredJisa || selectedJisa).counts?.safe || 0).toLocaleString()}</span>
-                        <span style={{color: '#f59e0b'}}>주의 {((hoveredJisa || selectedJisa).counts?.warn || 0).toLocaleString()}</span>
-                        <span style={{color: '#f97316'}}>경계 {((hoveredJisa || selectedJisa).counts?.alert || 0).toLocaleString()}</span>
-                        <span style={{color: '#ef4444'}}>심각 {((hoveredJisa || selectedJisa).counts?.severe || 0).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setHoveredJisa(null); if (selectedJisa && selectedJisa.type === 'jisa') setSelectedJisa(null); }}>✕</button>
+                  {(() => {
+                    const targetJisa = (hoveredJisa || selectedJisa);
+                    const isWarnOrAbove = targetJisa.riskClass === 'warn' || targetJisa.riskClass === 'alert' || targetJisa.riskClass === 'severe';
+                    const jSnap = snapshotRows.find(r => r.date === todayStr && r.gubun === '지사' && r.jisa === targetJisa.name) ||
+                                  snapshotRows.find(r => r.gubun === '지사' && r.jisa === targetJisa.name);
+                    
+                    let predPerRate = 100;
+                    if (jSnap && jSnap.neededRain !== undefined) {
+                      const normRate = (targetJisa.perRate && targetJisa.perRate > 0) ? (targetJisa.rate / (targetJisa.perRate / 100)) : 65.0;
+                      const ratio = jSnap.neededRain > 0 ? Math.min(1.5, jSnap.forecastRain / jSnap.neededRain) : 1.0;
+                      const gap = Math.max(0, normRate - targetJisa.rate);
+                      const estRate = Math.min(100, targetJisa.rate + (gap * ratio));
+                      predPerRate = Math.round((estRate / normRate) * 100);
+                    }
+
+                    const sBadge = (isWarnOrAbove && jSnap) ? (
+                      predPerRate > 60 ? { label: '● 해소', color: '#0891b2', bg: '#ecfeff', border: '#67e8f9' } :
+                      predPerRate > 50 ? { label: '● 미흡', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' } :
+                      { label: '● 부족', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' }
+                    ) : null;
+
+                    return (
+                      <>
+                        <div className="tooltip-header">
+                          <span className="title">{targetJisa.name}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ 
+                              fontWeight: '800', fontSize: '12px', padding: '2px 8px', borderRadius: '10px',
+                              background: targetJisa.riskClass === 'severe' ? 'rgba(239,68,68,0.2)' : 
+                                          targetJisa.riskClass === 'alert' ? 'rgba(249,115,22,0.2)' : 
+                                          targetJisa.riskClass === 'warn' ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)',
+                              color: targetJisa.riskClass === 'severe' ? '#ef4444' : 
+                                     targetJisa.riskClass === 'alert' ? '#f97316' : 
+                                     targetJisa.riskClass === 'warn' ? '#f59e0b' : '#3b82f6',
+                              border: `1px solid ${
+                                targetJisa.riskClass === 'severe' ? '#ef4444' : 
+                                targetJisa.riskClass === 'alert' ? '#f97316' : 
+                                targetJisa.riskClass === 'warn' ? '#f59e0b' : '#3b82f6'
+                              }`
+                            }}>
+                              {targetJisa.riskStr}
+                            </span>
+                            <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setHoveredJisa(null); if (selectedJisa && selectedJisa.type === 'jisa') setSelectedJisa(null); }}>✕</button>
+                          </div>
+                        </div>
+
+                        <div className="tooltip-body">
+                          <div className="tooltip-stat-row">
+                            <span>현재 저수율: <strong>{targetJisa.rate}%</strong></span>
+                            <span>평년대비: <strong>{targetJisa.perRate}%</strong></span>
+                          </div>
+
+                          <div className="tooltip-counts">
+                            <div style={{ color: '#64748b', fontSize: '11px', display: 'flex', justifyContent: 'space-between' }}>
+                              <span>총 <strong style={{ color: '#0f172a' }}>{((targetJisa.counts?.safe || 0) + (targetJisa.counts?.warn || 0) + (targetJisa.counts?.alert || 0) + (targetJisa.counts?.severe || 0)).toLocaleString()}개소</strong></span>
+                            </div>
+                            <div className="counts-row">
+                              <span style={{color: '#2563eb', fontWeight: 700}}>관심 {(targetJisa.counts?.safe || 0).toLocaleString()}</span>
+                              <span style={{color: '#d97706', fontWeight: 700}}>주의 {(targetJisa.counts?.warn || 0).toLocaleString()}</span>
+                              <span style={{color: '#ea580c', fontWeight: 700}}>경계 {(targetJisa.counts?.alert || 0).toLocaleString()}</span>
+                              <span style={{color: '#dc2626', fontWeight: 700}}>심각 {(targetJisa.counts?.severe || 0).toLocaleString()}</span>
+                            </div>
+                          </div>
+
+                          {/* 필요/3일예상 강수량 및 해갈 뱃지 (예상 평년대비 XX% 표출) */}
+                          {isWarnOrAbove && jSnap && (
+                            <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {sBadge && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <span style={{ 
+                                    fontSize: '11.5px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', 
+                                    color: sBadge.color, background: sBadge.bg, border: `1px solid ${sBadge.border}` 
+                                  }}>
+                                    {sBadge.label} (예상 평년대비 {predPerRate}%)
+                                  </span>
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600, marginTop: '2px' }}>
+                                <span>필요 강수량: <strong style={{ color: '#1d4ed8' }}>{jSnap.neededRain}mm</strong></span>
+                                <span>3일 예상: <strong style={{ color: '#047857' }}>{jSnap.forecastRain}mm</strong></span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </OverlayView>
             )}
@@ -549,6 +653,30 @@ function App() {
             )}
           </GoogleMap>
         </LoadScript>
+
+        {/* 화면 우측 하단 세로 표 형태 가뭄해소 예측 아이콘 범례 */}
+        <div className="drought-legend-vertical-card glass-panel">
+          <div className="legend-card-header">
+            <span>🌤️ 가뭄해소 예측 아이콘 범례</span>
+          </div>
+          <table className="legend-table">
+            <tbody>
+              <tr>
+                <td className="badge-col"><span className="badge relief">● 해소</span></td>
+                <td className="desc-col">평년 60% 초과 예상</td>
+              </tr>
+              <tr>
+                <td className="badge-col"><span className="badge partial">● 미흡</span></td>
+                <td className="desc-col">평년 50% 초과 예상</td>
+              </tr>
+              <tr>
+                <td className="badge-col"><span className="badge severe">● 부족</span></td>
+                <td className="desc-col">평년 50% 이하 지속</td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="legend-footer-note">* 3일 예상 강수량 적용</div>
+        </div>
       </div>
 
       <header className="header-bar glass-panel">
