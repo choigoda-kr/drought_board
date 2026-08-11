@@ -354,12 +354,6 @@ body {
 .jisa-label-alert { background: #ff6600; }
 .jisa-label-severe { background: #ff0000; }
 
-/* 저수지 마커 하단 이름표 라벨 */
-.reservoir-label {
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 4px rgba(0,0,0,0.5);
-  margin-top: 22px;
-}
-
 /* 펼쳐지는 우측 디테일 패널 */
 .detail-panel {
   position: absolute;
@@ -471,18 +465,114 @@ body {
 .dot.warn { background: var(--risk-warn); box-shadow: 0 0 10px var(--risk-warn); }
 .dot.alert { background: var(--risk-alert); box-shadow: 0 0 10px var(--risk-alert); }
 
-/* 저수지 마커 우측 라벨 박스 */
-.reservoir-label {
-  background-color: #172554;
-  color: #ffffff;
-  padding: 5px 10px;
-  border-radius: 6px;
+/* 지사명 통합 칩 (슬릭 다크 글래스모피즘 + 프리미엄 위험단계 글로우 테두리) */
+.custom-jisa-chip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #ffffff !important;
   font-size: 13px;
   font-weight: 700;
-  transform: translate(50px, 15px) !important;
   white-space: nowrap;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.4);
-  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  z-index: 900;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  border-width: 1.5px !important;
+  border-style: solid !important;
+}
+
+.custom-jisa-chip:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+  z-index: 1000;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+.jisa-chip-safe { border-color: #3b82f6 !important; box-shadow: 0 0 14px rgba(59, 130, 246, 0.35); }
+.jisa-chip-warn { border-color: #f59e0b !important; box-shadow: 0 0 14px rgba(245, 158, 11, 0.35); }
+.jisa-chip-alert { border-color: #f97316 !important; box-shadow: 0 0 14px rgba(249, 115, 22, 0.35); }
+.jisa-chip-severe { border-color: #ef4444 !important; box-shadow: 0 0 14px rgba(239, 68, 68, 0.45); }
+
+/* 좌측 쨍한 위험도 포인트 인디케이터 */
+.jisa-chip-risk-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.dot-safe { background: #2563eb; box-shadow: 0 0 10px #3b82f6; }
+.dot-warn { background: #eab308; box-shadow: 0 0 10px #f59e0b; }
+.dot-alert { background: #f97316; box-shadow: 0 0 10px #ea580c; }
+.dot-severe { background: #ef4444; box-shadow: 0 0 10px #dc2626; }
+
+.jisa-chip-name {
+  color: #f8fafc;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.jisa-chip-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1.5px solid #ffffff;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+.jisa-chip-badge.relief { background: #ecfeff; color: #0891b2; border-color: #06b6d4; box-shadow: 0 0 8px rgba(6, 182, 212, 0.7); }
+.jisa-chip-badge.partial { background: #fffbeb; color: #d97706; border-color: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.7); }
+.jisa-chip-badge.severe { background: #fff1f2; color: #e11d48; border-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.7); }
+
+/* 저수지 통합 칩 (물방울 아이콘 100% 앞단/상단 노출) */
+.custom-reservoir-chip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  padding: 5px 11px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  border-width: 2px;
+  border-style: solid;
+  cursor: pointer;
+  z-index: 850;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+.custom-reservoir-chip:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+  z-index: 980;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.chip-safe { border-color: #2563eb !important; }
+.chip-warn { border-color: #d97706 !important; }
+.chip-alert { border-color: #ea580c !important; }
+.chip-severe { border-color: #dc2626 !important; }
+
+.res-chip-icon {
+  font-size: 15px;
+  line-height: 1;
+  display: inline-block;
 }
 
 /* 커스텀 지사 툴팁 (화이트 바탕 컴팩트 세로 수직 카드) */
@@ -558,41 +648,117 @@ body {
   font-size: 11px;
 }
 
-/* 커스텀 저수지 툴팁 (가로형) */
+/* 커스텀 저수지 툴팁 (모던 화이트 표 테이블 구조) */
 .custom-reservoir-tooltip {
   position: absolute;
-  left: 20px; /* 마커 우측으로 띄움 */
-  top: -24px; /* 높이 중앙 정렬 보정 */
-  background: white;
-  border-radius: 8px;
-  padding: 8px 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  left: 30px;
+  top: -30px;
+  width: 280px;
+  background: #ffffff !important;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25) !important;
   display: flex;
-  gap: 12px;
-  align-items: center;
-  white-space: nowrap;
-  font-family: sans-serif;
-  color: #1f2937;
-  border: 1px solid #e5e7eb;
+  flex-direction: column;
+  gap: 10px;
+  white-space: normal;
+  color: #0f172a !important;
+  border-width: 2px !important;
+  border-style: solid !important;
+  z-index: 1000;
 }
-/* 좌측 뾰족한 꼬리 */
+.res-tooltip-safe { border-color: #2563eb !important; }
+.res-tooltip-warn { border-color: #d97706 !important; }
+.res-tooltip-alert { border-color: #ea580c !important; }
+.res-tooltip-severe { border-color: #dc2626 !important; }
+
+/* 좌측 뾰족한 화이트 꼬리 */
 .custom-reservoir-tooltip::before {
   content: "";
   position: absolute;
-  left: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-width: 8px 8px 8px 0;
+  left: -9px;
+  top: 24px;
+  border-width: 8px 9px 8px 0;
   border-style: solid;
-  border-color: transparent white transparent transparent;
+  border-color: transparent #ffffff transparent transparent !important;
 }
+
+.res-tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+.res-tooltip-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.res-icon { font-size: 16px; }
+.res-name-text { font-weight: 800; font-size: 15px; color: #0f172a; }
+
+.res-header-right-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.res-risk-badge {
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  padding: 3px 9px !important;
+  border-radius: 10px !important;
+  color: #ffffff !important;
+  display: inline-block;
+  letter-spacing: -0.2px;
+}
+.res-risk-badge.badge-safe { background: #2563eb !important; border: 1px solid #1d4ed8 !important; }
+.res-risk-badge.badge-warn { background: #d97706 !important; border: 1px solid #b45309 !important; }
+.res-risk-badge.badge-alert { background: #ea580c !important; border: 1px solid #c2410c !important; }
+.res-risk-badge.badge-severe { background: #dc2626 !important; border: 1px solid #b91c1c !important; }
+
+/* 툴팁 표(Table) 스타일 */
+.res-tooltip-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.res-tooltip-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  padding: 6px 8px;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  width: 25%;
+}
+.res-tooltip-table td {
+  background: #ffffff;
+  color: #1e293b;
+  font-weight: 500;
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  width: 25%;
+}
+.res-tooltip-table td strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.res-tooltip-table .highlight-rate {
+  color: #2563eb;
+}
+.res-tooltip-table .highlight-comp {
+  color: #0284c7;
+}
+
 .tooltip-close-btn {
   background: none;
   border: none;
   font-size: 16px;
   cursor: pointer;
   color: #9ca3af;
-  margin-left: 8px;
+  margin-left: 4px;
   padding: 0;
   display: flex;
   align-items: center;
@@ -758,45 +924,61 @@ body {
   }
 }
 
-/* ── 우측 트렌드 패널 (꺾은선 그래프 4박스) ─────────────────── */
+/* ── 우측 트렌드 패널 (꺾은선 그래프 4박스 + 하단 통합 범례 1박스) ─────────────────── */
 .trend-panels {
   position: fixed;
-  top: 85px;
-  bottom: 90px; /* 지도 확대/축소 (+/-) 버튼 바로 위까지 꽉 차게 배치 */
-  right: 14px;
+  top: 90px;
+  bottom: 20px;
+  right: 16px;
   width: 300px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   z-index: 500;
   pointer-events: none;
 }
 
-/* 화면 우측 하단 세로 표 형태 가뭄해소 예측 아이콘 범례 (Legend) - 컴팩트 화이트 */
-.drought-legend-vertical-card {
-  position: absolute;
-  bottom: 20px;
-  right: 360px;
-  left: auto;
-  transform: none;
-  z-index: 100;
-  background: #ffffff !important;
-  border: 1px solid #cbd5e1;
+.trend-box {
+  pointer-events: auto;
   padding: 8px 12px;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  min-width: fit-content;
-  font-family: inherit;
 }
-.legend-card-header {
-  font-size: 12px;
+
+/* 우측 패널 통합 범례 박스 (차트 박스와 폭 100% 동일 정렬) */
+.trend-legend-box {
+  pointer-events: auto;
+  width: 100%;
+  padding: 10px 14px;
+}
+.trend-legend-box .legend-card-header {
+  font-size: 0.88rem;
   font-weight: 800;
-  color: #0f172a;
-  text-align: center;
+  color: #ffffff !important;
   margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   padding-bottom: 4px;
-  border-bottom: 1px solid #e2e8f0;
-  letter-spacing: -0.3px;
+}
+.trend-legend-box .legend-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.trend-legend-box .legend-table td {
+  padding: 2.5px 0;
+  vertical-align: middle;
+}
+.trend-legend-box .badge-col {
+  width: 70px;
+}
+.trend-legend-box .desc-col {
+  color: #f8fafc !important;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.trend-legend-box .legend-footer-note {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 4px;
+  text-align: right;
 }
 .legend-table {
   width: 100%;
@@ -847,7 +1029,7 @@ body {
   font-weight: 600;
 }
 
-/* 지도 지사 마커 우상단 겹침 해갈 뱃지 칩 (1안 3D 글로우 도트) */
+/* 지도 지사 마커 우상단 겹침 해갈 뱃지 칩 (픽셀 기반 오프셋 밀착) */
 .map-jisa-badge-overlay {
   background: #ffffff;
   width: 15px;
@@ -860,7 +1042,7 @@ body {
   justify-content: center;
   pointer-events: none;
   border: 1.5px solid #ffffff;
-  transform: translate(12px, -12px);
+  transform: translate(26px, -14px) !important;
 }
 .map-jisa-badge-overlay.relief {
   background: #ecfeff;
@@ -993,4 +1175,176 @@ body {
     border-right: none;
     padding-right: 0;
   }
+}
+
+/* ── 스마트 데이터창 & 동적 SVG 연결선 (Leader Line) ─────────────────── */
+.leader-line-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1200;
+}
+
+@keyframes dashFlow {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.leader-path-anim {
+  animation: dashFlow 1s linear infinite;
+}
+
+/* 동해 해상 여백 영역 고정 스마트 세부정보 카드 (대표님 스크린샷 동그라미 화이트 박스 스타일) */
+.leader-callout-card.white-style-tooltip {
+  position: absolute;
+  top: 140px;
+  right: 330px; /* 우측 추이 패널 좌측 동해 바다 여백 공간 */
+  width: 290px;
+  background: #ffffff !important;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.25) !important;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  white-space: normal;
+  color: #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
+  z-index: 1300;
+  pointer-events: auto;
+  animation: fadeInCallout 0.18s ease-out forwards;
+}
+
+@keyframes fadeInCallout {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.callout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.callout-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.callout-title-group h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.callout-risk-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.callout-bonbu-tag {
+  font-size: 0.72rem;
+  background: rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.callout-badge-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.callout-risk-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 8px;
+  color: #ffffff;
+}
+.badge-safe { background: #2563eb; }
+.badge-warn { background: #d97706; }
+.badge-alert { background: #ea580c; }
+.badge-severe { background: #dc2626; }
+
+.callout-forecast-badge {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.callout-forecast-badge.relief { background: #ecfeff; color: #0891b2; }
+.callout-forecast-badge.partial { background: #fffbeb; color: #d97706; }
+.callout-forecast-badge.severe { background: #fff1f2; color: #e11d48; }
+
+.callout-body-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.callout-stat-box {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.callout-stat-box .stat-label {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.callout-stat-box .stat-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.callout-stat-box .stat-value.highlight {
+  color: #38bdf8;
+}
+
+.callout-stat-box .stat-value.small {
+  font-size: 0.82rem;
+}
+
+.callout-stat-box .text-blue {
+  color: #60a5fa;
+}
+
+.callout-footer-tip {
+  font-size: 0.73rem;
+  color: #94a3b8;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 6px 10px;
+  border-radius: 8px;
+  line-height: 1.35;
 }

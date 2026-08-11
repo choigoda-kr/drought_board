@@ -28,6 +28,11 @@ function parseCSVRow(str) {
 const PATH_BUILDING = "M4 22V10L12 2L20 10V22H4Z"; // 심플한 집 모양
 const PATH_DROPLET = "M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 12 2 12 2C12 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"; // 물방울 모양
 
+// ── 수치 전역 포맷터 (저수량: 정수 버림, 저수율/평년대비: 소수점 1자리) ─────
+const fmtVol = (val) => Math.floor(Number(val) || 0).toLocaleString();
+const fmtRate = (val) => Number(val || 0).toFixed(1);
+const fmtPerRate = (val) => Number(val || 0).toFixed(1);
+
 // ── 증감 표시 헬퍼 ──────────────────────────────────────────
 function DeltaBadge({ value, unit = '', isInteger = false }) {
   if (value === null || value === undefined || isNaN(value)) return null;
@@ -50,7 +55,7 @@ function DeltaBadge({ value, unit = '', isInteger = false }) {
 
 // ── SVG 꺾은선 그래프 (우측 패널용) ────────────────────────
 function SparkLine({ data, color, label }) {
-  const W = 270, H = 95, PAD = { t: 18, r: 16, b: 22, l: 16 };
+  const W = 270, H = 75, PAD = { t: 14, r: 16, b: 18, l: 16 };
   const innerW = W - PAD.l - PAD.r;
   const innerH = H - PAD.t - PAD.b;
 
@@ -148,10 +153,45 @@ function App() {
   const [selectedJisaDetail, setSelectedJisaDetail] = useState(null);
   const [updateTime, setUpdateTime] = useState('');
 
+  // 스마트 데이터창 & 동적 SVG 연결선(Leader Line) 픽셀 좌표 추적
+  const [leaderCoords, setLeaderCoords] = useState(null);
+  const mapContainerRef = useRef(null);
+  const calloutCardRef = useRef(null);
+  const hoveredAnchorRef = useRef(null);
+
   // 줌 레벨 추적용 상태 및 Ref
   const [currentZoom, setCurrentZoom] = useState(7.2);
   const [mapBounds, setMapBounds] = useState(null); // 뷰포트 컴링용
   const mapRef = useRef(null);
+
+  const updateLeaderCoords = useCallback(() => {
+    if (!hoveredJisa || !hoveredAnchorRef.current || !mapContainerRef.current || !calloutCardRef.current) {
+      setLeaderCoords(null);
+      return;
+    }
+    const mapRect = mapContainerRef.current.getBoundingClientRect();
+    const anchorRect = hoveredAnchorRef.current.getBoundingClientRect();
+    const cardRect = calloutCardRef.current.getBoundingClientRect();
+
+    // 지사 박스 우측 테두리 외곽 지점에서 출발
+    const startX = anchorRect.right - mapRect.left + 4;
+    const startY = anchorRect.top + anchorRect.height / 2 - mapRect.top;
+    
+    // 동해 여백 화이트 박스 카드 좌측 테두리 외곽 지점에서 멈춤
+    const endX = cardRect.left - mapRect.left - 2;
+    const endY = cardRect.top + cardRect.height / 2 - mapRect.top;
+
+    setLeaderCoords({ startX, startY, endX, endY });
+  }, [hoveredJisa]);
+
+  useEffect(() => {
+    if (hoveredJisa) {
+      const timer = setTimeout(updateLeaderCoords, 30);
+      return () => clearTimeout(timer);
+    } else {
+      setLeaderCoords(null);
+    }
+  }, [hoveredJisa, updateLeaderCoords, currentZoom]);
 
   const onLoad = useCallback(function callback(map) {
     mapRef.current = map;
@@ -188,6 +228,15 @@ function App() {
         setMapBounds({ swLat: sw.lat(), swLng: sw.lng(), neLat: ne.lat(), neLng: ne.lng() });
       }
       setCurrentZoom(mapRef.current.getZoom());
+    }
+  }, []);
+
+  // 지사 클릭 시 지도 중심 이동 및 저수지 표출 배율(11.5) 확대 헬퍼
+  const focusJisaOnMap = useCallback((jisa) => {
+    if (!jisa || isNaN(jisa.lat) || isNaN(jisa.lng) || jisa.lat === 0 || jisa.lng === 0) return;
+    if (mapRef.current) {
+      mapRef.current.panTo({ lat: jisa.lat, lng: jisa.lng });
+      mapRef.current.setZoom(11.5);
     }
   }, []);
 
@@ -438,7 +487,7 @@ function App() {
   return (
     <>
       <AgentationClient />
-      <div className="map-container">
+      <div className="map-container" ref={mapContainerRef}>
         <LoadScript googleMapsApiKey={MAPS_API_KEY}>
           <GoogleMap 
             mapContainerStyle={mapContainerStyle} 
@@ -452,23 +501,24 @@ function App() {
           >
             {!loading && (
               <>
-                {/* 1. 뷰포트 컴링: 화면에 보이는 저수지만 렌더링 (줌 10+) */}
+                {/* 1. 뷰포트 컴링: 화면에 보이는 저수지 커스텀 칩 렌더링 (줌 11+) */}
                 {visibleReservoirs.map((res, idx) => (
-                  <Marker 
-                    key={`res-${res.lat}-${res.lng}`} 
-                    position={{ lat: res.lat, lng: res.lng }} 
-                    icon={getMarkerIcon('reservoir', res.riskClass, currentZoom)}
-                    onClick={() => setSelectedJisa(res)}
-                    {...(currentZoom >= 11 ? { label: {
-                      text: `${res.name}, ${res.rate}%`,
-                      color: '#ffffff',
-                      fontSize: '11px',
-                      className: 'reservoir-label'
-                    }} : {})}
-                  />
+                  <OverlayView
+                    key={`res-${res.lat}-${res.lng}`}
+                    position={{ lat: res.lat, lng: res.lng }}
+                    mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                  >
+                    <div 
+                      className={`custom-reservoir-chip chip-${res.riskClass}`}
+                      onClick={() => setSelectedJisa(res)}
+                    >
+                      <span className="res-chip-icon">💧</span>
+                      <span className="res-chip-text">{res.name}{res.jisa ? `(${res.jisa})` : ''}, {fmtRate(res.rate)}%</span>
+                    </div>
+                  </OverlayView>
                 ))}
 
-                {/* 2. 그 위에 93개 지사 덮기 및 마커 옆 해갈 뱃지 겹침 표출 */}
+                {/* 2. 그 위에 93개 지사 커스텀 칩 렌더링 (글자수 가변 뱃지 자동 밀착) */}
                 {allJisas.map((jisa, idx) => {
                   const isWarnOrAbove = jisa.riskClass === 'warn' || jisa.riskClass === 'alert' || jisa.riskClass === 'severe';
                   const jSnap = isWarnOrAbove ? (
@@ -491,134 +541,29 @@ function App() {
                   }
 
                   return (
-                    <React.Fragment key={`jisa-frag-${idx}`}>
-                      <Marker 
-                        key={`jisa-${idx}`} 
-                        position={{ lat: jisa.lat, lng: jisa.lng }} 
-                        icon={getMarkerIcon('jisa', jisa.riskClass, currentZoom)}
-                        onClick={() => setSelectedJisa(jisa)}
+                    <OverlayView
+                      key={`jisa-${idx}`}
+                      position={{ lat: jisa.lat, lng: jisa.lng }}
+                      mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                    >
+                      <div 
+                        ref={hoveredJisa?.name === jisa.name ? hoveredAnchorRef : null}
+                        className={`custom-jisa-chip jisa-chip-${jisa.riskClass}`}
+                        onClick={() => { setSelectedJisa(jisa); focusJisaOnMap(jisa); }}
                         onMouseOver={() => setHoveredJisa(jisa)}
                         onMouseOut={() => setHoveredJisa(null)}
-                        zIndex={999}
-                        label={{
-                          text: jisa.name,
-                          color: '#ffffff',
-                          fontSize: '13px',
-                          className: `jisa-label jisa-label-${jisa.riskClass}`
-                        }}
-                      />
-                      {/* 지사 마커 우상단 겹침 해갈 뱃지 칩 */}
-                      {badgeIcon && (
-                        <OverlayView
-                          position={{ lat: jisa.lat + 0.02, lng: jisa.lng + 0.02 }}
-                          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                        >
-                          <div className={`map-jisa-badge-overlay ${badgeClass}`}>
-                            {badgeIcon}
-                          </div>
-                        </OverlayView>
-                      )}
-                    </React.Fragment>
+                      >
+                        <span className={`jisa-chip-risk-dot dot-${jisa.riskClass}`}></span>
+                        <span className="jisa-chip-name">{jisa.name}</span>
+                        {badgeIcon && (
+                          <span className={`jisa-chip-badge ${badgeClass}`}>{badgeIcon}</span>
+                        )}
+                      </div>
+                    </OverlayView>
                   );
                 })}
+
               </>
-            )}
-
-            {(hoveredJisa || (selectedJisa && selectedJisa.type === 'jisa')) && (
-              <OverlayView
-                position={{ lat: (hoveredJisa || selectedJisa).lat, lng: (hoveredJisa || selectedJisa).lng }}
-                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-              >
-                <div className="custom-jisa-tooltip">
-                  {(() => {
-                    const targetJisa = (hoveredJisa || selectedJisa);
-                    const isWarnOrAbove = targetJisa.riskClass === 'warn' || targetJisa.riskClass === 'alert' || targetJisa.riskClass === 'severe';
-                    const jSnap = snapshotRows.find(r => r.date === todayStr && r.gubun === '지사' && r.jisa === targetJisa.name) ||
-                                  snapshotRows.find(r => r.gubun === '지사' && r.jisa === targetJisa.name);
-                    
-                    let predPerRate = 100;
-                    if (jSnap && jSnap.neededRain !== undefined) {
-                      const normRate = (targetJisa.perRate && targetJisa.perRate > 0) ? (targetJisa.rate / (targetJisa.perRate / 100)) : 65.0;
-                      const ratio = jSnap.neededRain > 0 ? Math.min(1.5, jSnap.forecastRain / jSnap.neededRain) : 1.0;
-                      const gap = Math.max(0, normRate - targetJisa.rate);
-                      const estRate = Math.min(100, targetJisa.rate + (gap * ratio));
-                      predPerRate = Math.round((estRate / normRate) * 100);
-                    }
-
-                    const sBadge = (isWarnOrAbove && jSnap) ? (
-                      predPerRate > 60 ? { label: '● 해소', color: '#0891b2', bg: '#ecfeff', border: '#67e8f9' } :
-                      predPerRate > 50 ? { label: '● 미흡', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' } :
-                      { label: '● 부족', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' }
-                    ) : null;
-
-                    return (
-                      <>
-                        <div className="tooltip-header">
-                          <span className="title">{targetJisa.name}</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ 
-                              fontWeight: '800', fontSize: '12px', padding: '2px 8px', borderRadius: '10px',
-                              background: targetJisa.riskClass === 'severe' ? 'rgba(239,68,68,0.2)' : 
-                                          targetJisa.riskClass === 'alert' ? 'rgba(249,115,22,0.2)' : 
-                                          targetJisa.riskClass === 'warn' ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)',
-                              color: targetJisa.riskClass === 'severe' ? '#ef4444' : 
-                                     targetJisa.riskClass === 'alert' ? '#f97316' : 
-                                     targetJisa.riskClass === 'warn' ? '#f59e0b' : '#3b82f6',
-                              border: `1px solid ${
-                                targetJisa.riskClass === 'severe' ? '#ef4444' : 
-                                targetJisa.riskClass === 'alert' ? '#f97316' : 
-                                targetJisa.riskClass === 'warn' ? '#f59e0b' : '#3b82f6'
-                              }`
-                            }}>
-                              {targetJisa.riskStr}
-                            </span>
-                            <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setHoveredJisa(null); if (selectedJisa && selectedJisa.type === 'jisa') setSelectedJisa(null); }}>✕</button>
-                          </div>
-                        </div>
-
-                        <div className="tooltip-body">
-                          <div className="tooltip-stat-row">
-                            <span>현재 저수율: <strong>{targetJisa.rate}%</strong></span>
-                            <span>평년대비: <strong>{targetJisa.perRate}%</strong></span>
-                          </div>
-
-                          <div className="tooltip-counts">
-                            <div style={{ color: '#64748b', fontSize: '11px', display: 'flex', justifyContent: 'space-between' }}>
-                              <span>총 <strong style={{ color: '#0f172a' }}>{((targetJisa.counts?.safe || 0) + (targetJisa.counts?.warn || 0) + (targetJisa.counts?.alert || 0) + (targetJisa.counts?.severe || 0)).toLocaleString()}개소</strong></span>
-                            </div>
-                            <div className="counts-row">
-                              <span style={{color: '#2563eb', fontWeight: 700}}>관심 {(targetJisa.counts?.safe || 0).toLocaleString()}</span>
-                              <span style={{color: '#d97706', fontWeight: 700}}>주의 {(targetJisa.counts?.warn || 0).toLocaleString()}</span>
-                              <span style={{color: '#ea580c', fontWeight: 700}}>경계 {(targetJisa.counts?.alert || 0).toLocaleString()}</span>
-                              <span style={{color: '#dc2626', fontWeight: 700}}>심각 {(targetJisa.counts?.severe || 0).toLocaleString()}</span>
-                            </div>
-                          </div>
-
-                          {/* 필요/3일예상 강수량 및 해갈 뱃지 (예상 평년대비 XX% 표출) */}
-                          {isWarnOrAbove && jSnap && (
-                            <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              {sBadge && (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <span style={{ 
-                                    fontSize: '11.5px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', 
-                                    color: sBadge.color, background: sBadge.bg, border: `1px solid ${sBadge.border}` 
-                                  }}>
-                                    {sBadge.label} (예상 평년대비 {predPerRate}%)
-                                  </span>
-                                </div>
-                              )}
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600, marginTop: '2px' }}>
-                                <span>필요 강수량: <strong style={{ color: '#1d4ed8' }}>{jSnap.neededRain}mm</strong></span>
-                                <span>3일 예상: <strong style={{ color: '#047857' }}>{jSnap.forecastRain}mm</strong></span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </OverlayView>
             )}
 
             {selectedJisa && selectedJisa.type === 'reservoir' && (
@@ -626,57 +571,175 @@ function App() {
                 position={{ lat: selectedJisa.lat, lng: selectedJisa.lng }}
                 mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
               >
-                <div className="custom-reservoir-tooltip">
-                  <div className="tooltip-header">
-                    <span className="title">💧 {selectedJisa.name}</span>
-                    <span style={{ 
-                      fontWeight: 'bold', fontSize: '13px',
-                      color: selectedJisa.riskClass === 'severe' ? '#ff0000' : 
-                             selectedJisa.riskClass === 'alert' ? '#ff6600' : 
-                             selectedJisa.riskClass === 'warn' ? '#ffcc00' : '#0066ff' 
-                    }}>
-                      {selectedJisa.riskStr}
-                    </span>
+                <div className={`custom-reservoir-tooltip res-tooltip-${selectedJisa.riskClass}`}>
+                  <div className="res-tooltip-header">
+                    <div className="res-tooltip-title">
+                      <span className="res-icon">💧</span>
+                      <span className="res-name-text">{selectedJisa.name}{selectedJisa.jisa ? `(${selectedJisa.jisa})` : ''}</span>
+                    </div>
+                    <div className="res-header-right-group">
+                      <span className={`res-risk-badge badge-${selectedJisa.riskClass}`}>
+                        {selectedJisa.riskStr}
+                      </span>
+                      <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setSelectedJisa(null); }}>✕</button>
+                    </div>
                   </div>
-                  <div className="tooltip-body">
-                    <div className="tooltip-stat"><span>유효저수량</span><strong>{selectedJisa.effVol.toLocaleString()} 톤</strong></div>
-                    <div className="tooltip-stat"><span>현재저수량</span><strong>{selectedJisa.curVol.toLocaleString()} 톤</strong></div>
-                    <div className="tooltip-divider"></div>
-                    <div className="tooltip-stat"><span>저수율</span><strong>{selectedJisa.rate}%</strong></div>
-                    <div className="tooltip-divider"></div>
-                    <div className="tooltip-stat"><span>평년저수율</span><strong>{selectedJisa.nrRate}%</strong></div>
-                    <div className="tooltip-stat"><span>평년대비</span><strong>{selectedJisa.perRate}%</strong></div>
-                  </div>
-                  <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setSelectedJisa(null); }}>✕</button>
+
+                  <table className="res-tooltip-table">
+                    <tbody>
+                      <tr>
+                        <th>유효저수량</th>
+                        <td><strong>{fmtVol(selectedJisa.effVol)}</strong> 톤</td>
+                        <th>현재저수량</th>
+                        <td><strong>{fmtVol(selectedJisa.curVol)}</strong> 톤</td>
+                      </tr>
+                      <tr>
+                        <th>현재 저수율</th>
+                        <td className="highlight-rate"><strong>{fmtRate(selectedJisa.rate)}%</strong></td>
+                        <th>평년 저수율</th>
+                        <td><strong>{fmtRate(selectedJisa.nrRate)}%</strong></td>
+                      </tr>
+                      <tr>
+                        <th>평년대비</th>
+                        <td colSpan="3" className="highlight-comp"><strong>{fmtPerRate(selectedJisa.perRate)}%</strong></td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </OverlayView>
             )}
           </GoogleMap>
         </LoadScript>
 
-        {/* 화면 우측 하단 세로 표 형태 가뭄해소 예측 아이콘 범례 */}
-        <div className="drought-legend-vertical-card glass-panel">
-          <div className="legend-card-header">
-            <span>🌤️ 가뭄해소 예측 아이콘 범례</span>
-          </div>
-          <table className="legend-table">
-            <tbody>
-              <tr>
-                <td className="badge-col"><span className="badge relief">● 해소</span></td>
-                <td className="desc-col">평년 60% 초과 예상</td>
-              </tr>
-              <tr>
-                <td className="badge-col"><span className="badge partial">● 미흡</span></td>
-                <td className="desc-col">평년 50% 초과 예상</td>
-              </tr>
-              <tr>
-                <td className="badge-col"><span className="badge severe">● 부족</span></td>
-                <td className="desc-col">평년 50% 이하 지속</td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="legend-footer-note">* 3일 예상 강수량 적용</div>
-        </div>
+        {/* 동해 여백 고정 스마트 세부 정보창 & SVG Leader Line */}
+        {hoveredJisa && (
+          <>
+            {/* 1. SVG 동적 연결선 레이어 */}
+            {leaderCoords && (
+              <svg className="leader-line-svg">
+                <defs>
+                  <linearGradient id="leaderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.9" />
+                    <stop offset="100%" stopColor="#818cf8" stopOpacity="1" />
+                  </linearGradient>
+                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+
+                {/* 꺾인 연결선 (Smooth Bezier Curved Leader Line) */}
+                <path
+                  d={`M ${leaderCoords.startX} ${leaderCoords.startY} C ${leaderCoords.startX + (leaderCoords.endX - leaderCoords.startX) * 0.4} ${leaderCoords.startY}, ${leaderCoords.endX - 50} ${leaderCoords.endY}, ${leaderCoords.endX} ${leaderCoords.endY}`}
+                  fill="none"
+                  stroke="url(#leaderGrad)"
+                  strokeWidth="2.5"
+                  filter="url(#glow)"
+                  strokeDasharray="6 3"
+                  className="leader-path-anim"
+                />
+
+                {/* 지사 마커 위치 글로우 핑 도트 */}
+                <circle cx={leaderCoords.startX} cy={leaderCoords.startY} r="6" fill="#38bdf8" filter="url(#glow)" />
+                <circle cx={leaderCoords.startX} cy={leaderCoords.startY} r="3" fill="#ffffff" />
+
+                {/* 카드 입구 연결점 도트 */}
+                <circle cx={leaderCoords.endX} cy={leaderCoords.endY} r="4" fill="#818cf8" />
+              </svg>
+            )}
+
+            {/* 2. 동해 해상 여백 고정 화이트 세부정보 카드 (대표님 빨간 동그라미 스크린샷 표본 100% 동일 구현) */}
+            <div ref={calloutCardRef} className="leader-callout-card white-style-tooltip">
+              {(() => {
+                const targetJisa = hoveredJisa;
+                const isWarnOrAbove = targetJisa.riskClass === 'warn' || targetJisa.riskClass === 'alert' || targetJisa.riskClass === 'severe';
+                const jSnap = snapshotRows.find(r => r.date === todayStr && r.gubun === '지사' && r.jisa === targetJisa.name) ||
+                              snapshotRows.find(r => r.gubun === '지사' && r.jisa === targetJisa.name);
+                
+                let predPerRate = 100;
+                if (jSnap && jSnap.neededRain !== undefined) {
+                  const normRate = (targetJisa.perRate && targetJisa.perRate > 0) ? (targetJisa.rate / (targetJisa.perRate / 100)) : 65.0;
+                  const ratio = jSnap.neededRain > 0 ? Math.min(1.5, jSnap.forecastRain / jSnap.neededRain) : 1.0;
+                  const gap = Math.max(0, normRate - targetJisa.rate);
+                  const estRate = Math.min(100, targetJisa.rate + (gap * ratio));
+                  predPerRate = Math.round((estRate / normRate) * 100);
+                }
+
+                const sBadge = (isWarnOrAbove && jSnap) ? (
+                  predPerRate > 60 ? { label: '● 해소 (예상 평년대비 60% 초과)', color: '#0891b2', bg: '#ecfeff', border: '#67e8f9' } :
+                  predPerRate > 50 ? { label: '● 미흡 (예상 평년대비 50% 초과)', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' } :
+                  { label: '● 부족 (예상 평년대비 50% 이하 지속)', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' }
+                ) : null;
+
+                return (
+                  <>
+                    <div className="tooltip-header">
+                      <span className="title">{targetJisa.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ 
+                          fontWeight: '800', fontSize: '12px', padding: '2px 8px', borderRadius: '10px',
+                          background: targetJisa.riskClass === 'severe' ? 'rgba(239,68,68,0.2)' : 
+                                      targetJisa.riskClass === 'alert' ? 'rgba(249,115,22,0.2)' : 
+                                      targetJisa.riskClass === 'warn' ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)',
+                          color: targetJisa.riskClass === 'severe' ? '#ef4444' : 
+                                 targetJisa.riskClass === 'alert' ? '#f97316' : 
+                                 targetJisa.riskClass === 'warn' ? '#f59e0b' : '#3b82f6',
+                          border: `1px solid ${
+                            targetJisa.riskClass === 'severe' ? '#ef4444' : 
+                            targetJisa.riskClass === 'alert' ? '#f97316' : 
+                            targetJisa.riskClass === 'warn' ? '#f59e0b' : '#3b82f6'
+                          }`
+                        }}>
+                          {targetJisa.riskStr}
+                        </span>
+                        <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setHoveredJisa(null); }}>✕</button>
+                      </div>
+                    </div>
+
+                    <div className="tooltip-body">
+                      <div className="tooltip-stat-row">
+                        <span>현재 저수율: <strong>{fmtRate(targetJisa.rate)}%</strong></span>
+                        <span>평년대비: <strong>{fmtPerRate(targetJisa.perRate)}%</strong></span>
+                      </div>
+
+                      <div className="tooltip-counts">
+                        <div style={{ color: '#64748b', fontSize: '11px', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>🏠 <strong>{(targetJisa.totalCnt || ((targetJisa.counts?.safe || 0) + (targetJisa.counts?.warn || 0) + (targetJisa.counts?.alert || 0) + (targetJisa.counts?.severe || 0))).toLocaleString()}개소</strong></span>
+                        </div>
+                        <div className="counts-row">
+                          <span style={{color: '#2563eb', fontWeight: 700}}>관심 {(targetJisa.counts?.safe || 0).toLocaleString()}</span>
+                          <span style={{color: '#d97706', fontWeight: 700}}>주의 {(targetJisa.counts?.warn || 0).toLocaleString()}</span>
+                          <span style={{color: '#ea580c', fontWeight: 700}}>경계 {(targetJisa.counts?.alert || 0).toLocaleString()}</span>
+                          <span style={{color: '#dc2626', fontWeight: 700}}>심각 {(targetJisa.counts?.severe || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      {/* 필요/3일예상 강수량 및 해갈 뱃지 */}
+                      {isWarnOrAbove && jSnap && (
+                        <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {sBadge && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ 
+                                fontSize: '11.5px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', 
+                                color: sBadge.color, background: sBadge.bg, border: `1px solid ${sBadge.border}` 
+                              }}>
+                                {sBadge.label}
+                              </span>
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600, marginTop: '2px' }}>
+                            <span>필요 강수량: <strong style={{ color: '#1d4ed8' }}>{jSnap.neededRain}mm</strong></span>
+                            <span>3일 예상: <strong style={{ color: '#047857' }}>{jSnap.forecastRain}mm</strong></span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </>
+        )}
       </div>
 
       <header className="header-bar glass-panel">
@@ -690,10 +753,10 @@ function App() {
             <div className="header-national">
               <span className="header-national-label">전국 종합</span>
               <span className="header-national-rate">
-                저수율 <strong>{data.national.cr_rate}%</strong>
+                저수율 <strong>{fmtRate(data.national.cr_rate)}%</strong>
                 <DeltaBadge value={data.national.cr_change} unit="" />
               </span>
-              <span className="header-national-rate">평년대비 <strong>{data.national.per_rate}%</strong></span>
+              <span className="header-national-rate">평년대비 <strong>{fmtPerRate(data.national.per_rate)}%</strong></span>
               <span className="header-national-divider">│</span>
               <span className="header-national-counts">
                 총 <strong style={{color:'#fff'}}>{(data.national.counts.safe + data.national.counts.warn + data.national.counts.alert + data.national.counts.severe).toLocaleString()}</strong>{' '}
@@ -737,9 +800,9 @@ function App() {
                     <div className={`overall-risk ${bRiskStatusClass}`}>{bRiskStr}</div>
                   </div>
                   <div className="card-right">
-                    <div className="card-right-top">
-                      <span>현재 <strong>{bonbu.rate}%</strong><DeltaBadge value={bonbu.crChange} /></span>
-                      <span>평년대비 <strong>{bonbu.perRate > 0 ? bonbu.perRate.toFixed(1) : '0.0'}%</strong></span>
+                    <div className="bonbu-card-sub">
+                      <span>현재 <strong>{fmtRate(bonbu.rate)}%</strong><DeltaBadge value={bonbu.crChange} /></span>
+                      <span>평년대비 <strong>{fmtPerRate(bonbu.perRate)}%</strong></span>
                     </div>
                     <div className="card-right-bottom">
                       {(() => {
@@ -776,7 +839,11 @@ function App() {
                         <React.Fragment key={`mobile-jisa-${jisa.name}`}>
                           <div 
                             className={`bonbu-card accordion-card ${selectedJisaDetail?.name === jisa.name ? 'selected' : ''}`}
-                            onClick={() => setSelectedJisaDetail(selectedJisaDetail?.name === jisa.name ? null : jisa)}
+                            onClick={() => {
+                              const nextJisa = selectedJisaDetail?.name === jisa.name ? null : jisa;
+                              setSelectedJisaDetail(nextJisa);
+                              if (nextJisa) focusJisaOnMap(nextJisa);
+                            }}
                           >
                             <div className="card-left">
                               <h3 style={{fontSize: '0.9rem'}}>{jisa.name}</h3>
@@ -794,9 +861,9 @@ function App() {
 
                               return (
                                 <div className="card-right">
-                                  <div className="card-right-top" style={{fontSize: '0.95rem'}}>
-                                    <span>현재 <strong>{jisa.rate}%</strong><DeltaBadge value={rateDiff} /></span>
-                                    <span>평년대비 <strong>{jisa.perRate > 0 ? jisa.perRate.toFixed(1) : '0.0'}%</strong></span>
+                                  <div className="jisa-card-sub">
+                                    <span>현재 <strong>{fmtRate(jisa.rate)}%</strong><DeltaBadge value={rateDiff} /></span>
+                                    <span>평년대비 <strong>{fmtPerRate(jisa.perRate)}%</strong></span>
                                   </div>
                                   <div className="card-right-bottom" style={{fontSize: '0.85rem'}}>
                                     <div className="risk-summary">
@@ -862,7 +929,7 @@ function App() {
               <div 
                 key={jisa.name} 
                 className={`bonbu-card ${selectedJisaDetail?.name === jisa.name ? 'selected' : ''}`}
-                onClick={() => setSelectedJisaDetail(jisa)}
+                onClick={() => { setSelectedJisaDetail(jisa); focusJisaOnMap(jisa); }}
               >
                 <div className="card-left">
                   <h3>{jisa.name}</h3>
@@ -921,7 +988,7 @@ function App() {
                   <span className="res-name">💧 {res.name}</span>
                   <div>
                     <span className={`res-status ${rStatusClass}`}>{res.riskStr}</span>
-                    <span className="res-rate">{res.rate}%</span>
+                    <span className="res-rate">{fmtRate(res.rate)}%</span>
                   </div>
                 </div>
               )
@@ -945,6 +1012,30 @@ function App() {
             <SparkLine data={getChartData(field)} color={color} label={field} />
           </div>
         ))}
+
+        {/* 5번째 통합 박스: 폭이 우측 차트 박스와 100% 동일하게 맞춰진 가뭄해소 예측 범례 */}
+        <div className="trend-legend-box glass-panel">
+          <div className="legend-card-header">
+            <span>🌤️ 가뭄해소 예측 범례</span>
+          </div>
+          <table className="legend-table">
+            <tbody>
+              <tr>
+                <td className="badge-col"><span className="badge relief">● 해소</span></td>
+                <td className="desc-col">평년 60% 초과 예상</td>
+              </tr>
+              <tr>
+                <td className="badge-col"><span className="badge partial">● 미흡</span></td>
+                <td className="desc-col">평년 50% 초과 예상</td>
+              </tr>
+              <tr>
+                <td className="badge-col"><span className="badge severe">● 부족</span></td>
+                <td className="desc-col">평년 50% 이하 지속</td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="legend-footer-note">* 기상청 3일 예상 강수량 적용</div>
+        </div>
       </div>
     </>
   );
