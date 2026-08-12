@@ -188,9 +188,14 @@ function App() {
   }, [activeJisa]);
 
   useEffect(() => {
+    let animationFrameId;
     if (activeJisa) {
-      const timer = setTimeout(updateLeaderCoords, 30);
-      return () => clearTimeout(timer);
+      const loop = () => {
+        updateLeaderCoords();
+        animationFrameId = requestAnimationFrame(loop);
+      };
+      loop();
+      return () => cancelAnimationFrame(animationFrameId);
     } else {
       setLeaderCoords(null);
     }
@@ -374,8 +379,11 @@ function App() {
             basinArea:    parseFloat(r[15]) || 0,
             neededRain:   parseFloat(r[16]) || 0,
             forecastRain: parseFloat(r[17]) || 0,
-            estRate:      parseFloat(r[18]) || 0,
-            reliefStatus: (r[19] || '').trim(),
+            addedVol:     parseFloat(r[18]) || 0,
+            estVol:       parseFloat(r[19]) || 0,
+            estRate:      parseFloat(r[20]) || 0,
+            estNormalComp: parseFloat(r[21]) || 0,
+            reliefStatus: (r[22] || '').trim(),
           });
 
         }
@@ -537,11 +545,7 @@ function App() {
                   let badgeIcon = '';
                   let badgeClass = '';
                   if (jSnap && jSnap.neededRain !== undefined) {
-                    const normRate = (jisa.perRate && jisa.perRate > 0) ? (jisa.rate / (jisa.perRate / 100)) : 65.0;
-                    const ratio = jSnap.neededRain > 0 ? Math.min(1.5, jSnap.forecastRain / jSnap.neededRain) : 1.0;
-                    const gap = Math.max(0, normRate - jisa.rate);
-                    const estRate = Math.min(100, jisa.rate + (gap * ratio));
-                    const predPerRate = Math.round((estRate / normRate) * 100);
+                    const predPerRate = jSnap.estNormalComp || 0;
 
                     if (predPerRate > 60) { badgeIcon = '●'; badgeClass = 'relief'; }
                     else if (predPerRate > 50) { badgeIcon = '●'; badgeClass = 'partial'; }
@@ -557,7 +561,7 @@ function App() {
                       <div 
                         ref={activeJisa?.name === jisa.name ? hoveredAnchorRef : null}
                         className={`custom-jisa-chip jisa-chip-${jisa.riskClass}`}
-                        onClick={() => { setPinnedJisa(jisa); setSelectedJisa(jisa); focusJisaOnMap(jisa); }}
+                        onClick={() => { setHoveredJisa(null); setPinnedJisa(jisa); setSelectedJisa(jisa); focusJisaOnMap(jisa); }}
                         onMouseOver={() => { if (!pinnedJisa) setHoveredJisa(jisa); }}
                         onMouseOut={() => { if (!pinnedJisa) setHoveredJisa(null); }}
                       >
@@ -671,11 +675,8 @@ function App() {
                 let predPerRate = 100;
                 let estRateNum = null;
                 if (jSnap && jSnap.neededRain !== undefined) {
-                  const normRate = (targetJisa.perRate && targetJisa.perRate > 0) ? (targetJisa.rate / (targetJisa.perRate / 100)) : 65.0;
-                  const ratio = neededRainVal > 0 ? Math.min(1.5, jSnap.forecastRain / neededRainVal) : 1.0;
-                  const estRate = isPerAbove100 ? targetJisa.rate : Math.min(100, targetJisa.rate + (Math.max(0, normRate - targetJisa.rate) * ratio));
-                  predPerRate = Math.round((estRate / normRate) * 100);
-                  estRateNum = estRate;
+                  predPerRate = jSnap.estNormalComp || 0;
+                  estRateNum = jSnap.estRate !== undefined ? jSnap.estRate : null;
                 }
 
                 const sBadge = (isWarnOrAbove && jSnap) ? (
@@ -741,11 +742,19 @@ function App() {
                             </div>
                           )}
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600, marginTop: '2px' }}>
-                            <span>평년 수준 도달 강수량: <strong style={{ color: '#1d4ed8' }}>{neededRainVal}mm</strong></span>
+                            <span>평년 수준 도달 강수량:</span> <strong style={{ color: '#1d4ed8' }}>{neededRainVal}mm</strong>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600 }}>
-                            <span>예상 강수량(3일): <strong style={{ color: '#047857' }}>{jSnap.forecastRain}mm</strong></span>
-                            <span>예상 저수율: <strong style={{ color: '#2563eb' }}>{estRateNum !== null ? `${fmtRate(estRateNum)}%` : '-'}</strong></span>
+                            <span>예상 강수량(3일):</span> <strong style={{ color: '#047857' }}>{jSnap.forecastRain}mm</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600 }}>
+                            <span>예상 유입량(3일):</span> <strong style={{ color: '#0ea5e9' }}>{jSnap.addedVol ? fmtVol(jSnap.addedVol) : 0}톤</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600 }}>
+                            <span>예상 저수율(3일):</span> <strong style={{ color: '#2563eb' }}>{estRateNum !== null ? `${fmtRate(estRateNum)}%` : '-'}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600 }}>
+                            <span>예상 평년대비 저수율:</span> <strong style={{ color: '#7c3aed' }}>{jSnap.estNormalComp ? `${fmtRate(jSnap.estNormalComp)}%` : '-'}</strong>
                           </div>
                         </div>
                       )}
