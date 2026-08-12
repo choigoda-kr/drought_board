@@ -150,6 +150,7 @@ function App() {
   const [selectedBonbu, setSelectedBonbu] = useState(null);
   const [selectedJisa, setSelectedJisa] = useState(null);
   const [hoveredJisa, setHoveredJisa] = useState(null);
+  const [pinnedJisa, setPinnedJisa] = useState(null);
   const [selectedJisaDetail, setSelectedJisaDetail] = useState(null);
   const [updateTime, setUpdateTime] = useState('');
 
@@ -164,8 +165,10 @@ function App() {
   const [mapBounds, setMapBounds] = useState(null); // 뷰포트 컴링용
   const mapRef = useRef(null);
 
+  const activeJisa = hoveredJisa || pinnedJisa;
+
   const updateLeaderCoords = useCallback(() => {
-    if (!hoveredJisa || !hoveredAnchorRef.current || !mapContainerRef.current || !calloutCardRef.current) {
+    if (!activeJisa || !hoveredAnchorRef.current || !mapContainerRef.current || !calloutCardRef.current) {
       setLeaderCoords(null);
       return;
     }
@@ -182,16 +185,16 @@ function App() {
     const endY = cardRect.top + cardRect.height / 2 - mapRect.top;
 
     setLeaderCoords({ startX, startY, endX, endY });
-  }, [hoveredJisa]);
+  }, [activeJisa]);
 
   useEffect(() => {
-    if (hoveredJisa) {
+    if (activeJisa) {
       const timer = setTimeout(updateLeaderCoords, 30);
       return () => clearTimeout(timer);
     } else {
       setLeaderCoords(null);
     }
-  }, [hoveredJisa, updateLeaderCoords, currentZoom]);
+  }, [activeJisa, updateLeaderCoords, currentZoom]);
 
   const onLoad = useCallback(function callback(map) {
     mapRef.current = map;
@@ -547,11 +550,11 @@ function App() {
                       mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
                     >
                       <div 
-                        ref={hoveredJisa?.name === jisa.name ? hoveredAnchorRef : null}
+                        ref={activeJisa?.name === jisa.name ? hoveredAnchorRef : null}
                         className={`custom-jisa-chip jisa-chip-${jisa.riskClass}`}
-                        onClick={() => { setSelectedJisa(jisa); focusJisaOnMap(jisa); }}
-                        onMouseOver={() => setHoveredJisa(jisa)}
-                        onMouseOut={() => setHoveredJisa(null)}
+                        onClick={() => { setPinnedJisa(jisa); setSelectedJisa(jisa); focusJisaOnMap(jisa); }}
+                        onMouseOver={() => { if (!pinnedJisa) setHoveredJisa(jisa); }}
+                        onMouseOut={() => { if (!pinnedJisa) setHoveredJisa(null); }}
                       >
                         <span className={`jisa-chip-risk-dot dot-${jisa.riskClass}`}></span>
                         <span className="jisa-chip-name">{jisa.name}</span>
@@ -612,7 +615,7 @@ function App() {
         </LoadScript>
 
         {/* 동해 여백 고정 스마트 세부 정보창 & SVG Leader Line */}
-        {hoveredJisa && (
+        {activeJisa && (
           <>
             {/* 1. SVG 동적 연결선 레이어 */}
             {leaderCoords && (
@@ -651,18 +654,23 @@ function App() {
             {/* 2. 동해 해상 여백 고정 화이트 세부정보 카드 (대표님 빨간 동그라미 스크린샷 표본 100% 동일 구현) */}
             <div ref={calloutCardRef} className="leader-callout-card white-style-tooltip">
               {(() => {
-                const targetJisa = hoveredJisa;
+                const targetJisa = activeJisa;
                 const isWarnOrAbove = targetJisa.riskClass === 'warn' || targetJisa.riskClass === 'alert' || targetJisa.riskClass === 'severe';
                 const jSnap = snapshotRows.find(r => r.date === todayStr && r.gubun === '지사' && r.jisa === targetJisa.name) ||
                               snapshotRows.find(r => r.gubun === '지사' && r.jisa === targetJisa.name);
                 
+                const isPerAbove100 = targetJisa.perRate >= 100;
+                const rawNeeded = jSnap ? (jSnap.neededRain || 0) : 0;
+                const neededRainVal = isPerAbove100 ? 0 : rawNeeded;
+
                 let predPerRate = 100;
+                let estRateNum = null;
                 if (jSnap && jSnap.neededRain !== undefined) {
                   const normRate = (targetJisa.perRate && targetJisa.perRate > 0) ? (targetJisa.rate / (targetJisa.perRate / 100)) : 65.0;
-                  const ratio = jSnap.neededRain > 0 ? Math.min(1.5, jSnap.forecastRain / jSnap.neededRain) : 1.0;
-                  const gap = Math.max(0, normRate - targetJisa.rate);
-                  const estRate = Math.min(100, targetJisa.rate + (gap * ratio));
+                  const ratio = neededRainVal > 0 ? Math.min(1.5, jSnap.forecastRain / neededRainVal) : 1.0;
+                  const estRate = isPerAbove100 ? targetJisa.rate : Math.min(100, targetJisa.rate + (Math.max(0, normRate - targetJisa.rate) * ratio));
                   predPerRate = Math.round((estRate / normRate) * 100);
+                  estRateNum = estRate;
                 }
 
                 const sBadge = (isWarnOrAbove && jSnap) ? (
@@ -692,7 +700,7 @@ function App() {
                         }}>
                           {targetJisa.riskStr}
                         </span>
-                        <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setHoveredJisa(null); }}>✕</button>
+                        <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setPinnedJisa(null); setHoveredJisa(null); }}>✕</button>
                       </div>
                     </div>
 
@@ -715,7 +723,7 @@ function App() {
                       </div>
 
                       {/* 필요/3일예상 강수량 및 해갈 뱃지 */}
-                      {isWarnOrAbove && jSnap && (
+                      {jSnap && (
                         <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {sBadge && (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -728,8 +736,11 @@ function App() {
                             </div>
                           )}
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600, marginTop: '2px' }}>
-                            <span>필요 강수량: <strong style={{ color: '#1d4ed8' }}>{jSnap.neededRain}mm</strong></span>
-                            <span>3일 예상: <strong style={{ color: '#047857' }}>{jSnap.forecastRain}mm</strong></span>
+                            <span>평년 수준 도달 강수량: <strong style={{ color: '#1d4ed8' }}>{neededRainVal}mm</strong></span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600 }}>
+                            <span>예상 강수량(3일): <strong style={{ color: '#047857' }}>{jSnap.forecastRain}mm</strong></span>
+                            <span>예상 저수율: <strong style={{ color: '#2563eb' }}>{estRateNum !== null ? `${fmtRate(estRateNum)}%` : '-'}</strong></span>
                           </div>
                         </div>
                       )}
