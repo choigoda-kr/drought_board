@@ -368,11 +368,16 @@ function App() {
             alert:        parseInt(r[9]) || 0,
             severe:       parseInt(r[10]) || 0,
             total:        parseInt(r[11]) || 0,
-            neededRain:   parseFloat(r[12]) || 0,
-            forecastRain: parseFloat(r[13]) || 0,
-            fulfillment:  parseFloat(r[14]) || 0,
-            reliefStatus: (r[15] || '').trim(),
+            normalVol:    parseFloat(r[12]) || 0,
+            currentVol:   parseFloat(r[13]) || 0,
+            deficitVol:   parseFloat(r[14]) || 0,
+            basinArea:    parseFloat(r[15]) || 0,
+            neededRain:   parseFloat(r[16]) || 0,
+            forecastRain: parseFloat(r[17]) || 0,
+            estRate:      parseFloat(r[18]) || 0,
+            reliefStatus: (r[19] || '').trim(),
           });
+
         }
         setSnapshotRows(parsed);
       })
