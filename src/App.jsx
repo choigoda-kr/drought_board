@@ -157,11 +157,16 @@ function App() {
   const [selectedBonbu, setSelectedBonbu] = useState('전국');
   const [selectedJisa, setSelectedJisa] = useState(null);
   const [selectedJisaDetail, setSelectedJisaDetail] = useState(null);
-
-  // 비구름 레이더 상태
-  const [showRadar, setShowRadar] = useState(false);
+  const [showRadar, setShowRadar] = useState(true);
   const [radarPath, setRadarPath] = useState(null);
   const [radarTimestamp, setRadarTimestamp] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [hoveredJisa, setHoveredJisa] = useState(null);
   const [pinnedJisa, setPinnedJisa] = useState(null);
@@ -595,18 +600,15 @@ function App() {
     <>
       <AgentationClient />
       
-      {/* 레이더 토글 버튼 */}
-      <div className={`radar-toggle-btn ${showRadar ? 'active' : ''}`} onClick={() => setShowRadar(!showRadar)}>
-        <div className="radar-icon">🌧️</div>
-        <span>레이더 {showRadar ? 'ON' : 'OFF'}</span>
-        {showRadar && radarTimestamp && (
-          <div className="radar-time">
-            {new Date(radarTimestamp * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute:'2-digit' })} 기준
-          </div>
-        )}
-      </div>
-
       <div className="map-container" ref={mapContainerRef}>
+        {isMobile ? (
+          <div className="mobile-map-fallback">
+            <div className="fallback-content">
+              <span className="fallback-icon">🖥️</span>
+              <p>자세한 내용은 PC에서 확인해 주세요</p>
+            </div>
+          </div>
+        ) : (
         <LoadScript googleMapsApiKey={MAPS_API_KEY}>
           <GoogleMap 
             mapContainerStyle={mapContainerStyle} 
@@ -680,7 +682,7 @@ function App() {
                           <span className={`jisa-chip-badge ${badgeClass}`}>{badgeIcon}</span>
                         )}
                         {badgeIcon7d && (
-                          <span className={`jisa-chip-badge ${badgeClass7d}`} style={{ marginLeft: '2px' }}>{badgeIcon7d}</span>
+                          <span className={`jisa-chip-badge ${badgeClass7d}`} style={{ marginLeft: '-4px' }}>{badgeIcon7d}</span>
                         )}
                       </div>
                     </OverlayView>
@@ -734,6 +736,7 @@ function App() {
             )}
           </GoogleMap>
         </LoadScript>
+        )}
 
         {/* 동해 여백 고정 스마트 세부 정보창 & SVG Leader Line */}
         {activeJisa && (
