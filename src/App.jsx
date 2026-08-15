@@ -184,21 +184,34 @@ function App() {
   const mapRef = useRef(null);
 
   // RainViewer API 연동 및 레이어 관리
+  const fetchRadarData = useCallback(() => {
+    fetch('https://api.rainviewer.com/public/weather-maps.json')
+      .then(res => res.json())
+      .then(d => {
+        const past = d.radar.past;
+        if (past && past.length > 0) {
+          const latest = past[past.length - 1];
+          setRadarPath(prev => prev !== latest.path ? latest.path : prev);
+          setRadarTimestamp(prev => prev !== latest.time ? latest.time : prev);
+        }
+      })
+      .catch(err => console.error("RainViewer API Error:", err));
+  }, []);
+
   useEffect(() => {
-    if (showRadar && !radarPath) {
-      fetch('https://api.rainviewer.com/public/weather-maps.json')
-        .then(res => res.json())
-        .then(d => {
-          const past = d.radar.past;
-          if (past && past.length > 0) {
-            const latest = past[past.length - 1];
-            setRadarPath(latest.path);
-            setRadarTimestamp(latest.time);
-          }
-        })
-        .catch(err => console.error("RainViewer API Error:", err));
+    let radarInterval;
+    if (showRadar) {
+      // 켰을 때(또는 마운트 시) 최초 1회 즉시 호출
+      fetchRadarData();
+      // 이후 10분마다 갱신
+      radarInterval = setInterval(() => {
+        fetchRadarData();
+      }, 600_000);
     }
-  }, [showRadar, radarPath]);
+    return () => {
+      if (radarInterval) clearInterval(radarInterval);
+    };
+  }, [showRadar, fetchRadarData]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -482,6 +495,9 @@ function App() {
             reliefStatus7d: (r[28] || '').trim(),
           });
 
+          if ((r[3] || '').trim() === '김해.양산.부산') {
+            console.log('[DEBUG PARSE] 김해 CSV Row:', r);
+          }
         }
         setSnapshotRows(parsed);
       })
@@ -782,6 +798,11 @@ function App() {
                 const isWarnOrAbove = targetJisa.riskClass === 'warn' || targetJisa.riskClass === 'alert' || targetJisa.riskClass === 'severe';
                 const jSnap = snapshotRows.find(r => r.date === todayStr && r.gubun === '지사' && r.jisa === targetJisa.name) ||
                               snapshotRows.find(r => r.gubun === '지사' && r.jisa === targetJisa.name);
+                
+                if (targetJisa.name === '김해.양산.부산') {
+                  console.log('[DEBUG] 김해.양산.부산 todayStr:', todayStr, 'isWarnOrAbove:', isWarnOrAbove);
+                  console.log('[DEBUG] 매칭된 jSnap:', jSnap);
+                }
                 
                 const isPerAbove100 = targetJisa.perRate >= 100;
                 const rawNeeded = jSnap ? (jSnap.neededRain || 0) : 0;
@@ -1089,7 +1110,7 @@ function App() {
       </aside>
 
       {/* 중앙 지사 리스트 패널 */}
-      <div className={`detail-panel glass-panel ${selectedBonbu ? 'open' : ''}`}>
+      <div className={`detail-panel glass-panel ${selectedBonbu && selectedBonbu !== '전국' ? 'open' : ''}`}>
         <div className="detail-header">
           <h2>{selectedBonbu} 지사 리스트</h2>
           <button className="close-btn" onClick={() => { setSelectedBonbu(null); setSelectedJisaDetail(null); }}>✕</button>
