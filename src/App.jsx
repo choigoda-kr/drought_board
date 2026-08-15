@@ -1219,17 +1219,17 @@ function App() {
               <tr>
                 <td className="icon-col"><div className="legend-star relief">★</div></td>
                 <td className="badge-col"><span className="badge relief">해소</span></td>
-                <td className="desc-col">평년 60% 초과 예상</td>
+                <td className="desc-col">평년 60% 초과 예상 (3일후, 1주일 후)</td>
               </tr>
               <tr>
                 <td className="icon-col"><div className="legend-star partial">★</div></td>
                 <td className="badge-col"><span className="badge partial">미흡</span></td>
-                <td className="desc-col">평년 50% 초과 예상</td>
+                <td className="desc-col">평년 50% 초과 예상 (3일후, 1주일 후)</td>
               </tr>
               <tr>
                 <td className="icon-col"><div className="legend-star severe">★</div></td>
                 <td className="badge-col"><span className="badge severe">부족</span></td>
-                <td className="desc-col">평년 50% 이하 지속</td>
+                <td className="desc-col">평년 50% 이하 지속 (3일후, 1주일 후)</td>
               </tr>
             </tbody>
           </table>
