@@ -79,6 +79,22 @@ body {
   gap: 8px;
 }
 
+.header-link-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.header-link-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 .header-badge {
   background: rgba(59, 130, 246, 0.2);
   color: #60a5fa;
@@ -178,7 +194,7 @@ body {
   top: 100px;
   left: 20px;
   z-index: 10;
-  width: 480px; /* 移대뱶媛 吏ㅻ━吏 ?딅룄濡??볦씠瑜?480px濡??됰꼮?섍쾶 ?뺤옣 */
+  width: 520px; /* 텍스트 한 줄을 유지하기 위해 520px로 대폭 확장 */
   height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
@@ -537,45 +553,72 @@ body {
 .jisa-chip-badge.partial { background: #fffbeb; color: #d97706; border-color: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.7); }
 .jisa-chip-badge.severe { background: #fff1f2; color: #e11d48; border-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.7); }
 
-/* ??섏? ?듯빀 移?(臾쇰갑???꾩씠肄?100% ?욌떒/?곷떒 ?몄텧) */
-.custom-reservoir-chip {
+/* 저수지 마커: 물방울 SVG + 오프셋 라벨 분리 구조 */
+
+/* ① 래퍼: OverlayView 원점 기준 (저수지 정확한 좌표) */
+.res-marker-wrapper {
+  position: relative;
+  width: 0;
+  height: 0;
+  cursor: pointer;
+}
+
+/* ② 물방울 SVG 마커 — 뾰족한 끝이 정확한 위치를 anchor */
+.res-droplet-marker {
   position: absolute;
-  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 26px;
+  transform: translate(-50%, -90%);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+  transition: transform 0.15s ease, filter 0.15s ease;
+  z-index: 860;
+  stroke: #ffffff;
+  stroke-width: 1.5px;
+}
+.res-marker-wrapper:hover .res-droplet-marker {
+  transform: translate(-50%, -90%) scale(1.3);
+  filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.55));
+}
+
+/* 가뭄단계별 물방울 채움 색상 */
+.droplet-safe   { fill: #2563eb; }
+.droplet-warn   { fill: #f59e0b; }
+.droplet-alert  { fill: #f97316; }
+.droplet-severe { fill: #dc2626; }
+
+/* ③ 라벨 칩 — 물방울 우측상단 오프셋, 위치 미가림 */
+.res-label-chip {
+  position: absolute;
+  left: 14px;
+  bottom: 16px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: #ffffff !important;
-  color: #0f172a !important;
-  padding: 5px 11px;
-  border-radius: 20px;
-  font-size: 12px;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.93);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-  border-width: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  border-width: 1.5px;
   border-style: solid;
-  cursor: pointer;
-  z-index: 850;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  pointer-events: none;
+  z-index: 855;
   user-select: none;
 }
-.custom-reservoir-chip:hover {
-  transform: translate(-50%, -50%) scale(1.08);
-  z-index: 980;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-}
-.chip-safe { border-color: #2563eb !important; }
-.chip-warn { border-color: #d97706 !important; }
-.chip-alert { border-color: #ea580c !important; }
+
+/* 라벨 테두리: 가뭄단계 색상 */
+.chip-safe   { border-color: #2563eb !important; }
+.chip-warn   { border-color: #f59e0b !important; }
+.chip-alert  { border-color: #f97316 !important; }
 .chip-severe { border-color: #dc2626 !important; }
 
-.res-chip-icon {
-  font-size: 15px;
-  line-height: 1;
-  display: inline-block;
-}
+.res-label-name { color: #1e293b; font-weight: 600; }
+.res-label-rate { font-weight: 800; color: #0f172a; }
 
-/* 而ㅼ뒪? 吏???댄똻 (?붿씠??諛뷀깢 而댄뙥???몃줈 ?섏쭅 移대뱶) */
+/* 而ㅼ뒪?€ 吏€???댄똻 (?붿씠??諛뷀깢 而댄뙥???몃줈 ?섏쭅 移대뱶) */
 .custom-jisa-tooltip {
   position: absolute;
   left: 35px;
@@ -1460,20 +1503,155 @@ body {
 
   /* 본부/지사 카드 내 텍스트 잘림 방지 (글씨 및 자간 축소) */
   .risk-summary {
-    font-size: 0.73rem !important;
-    gap: 1px !important;
-    letter-spacing: -0.5px !important;
+    font-size: 0.70rem !important;
+    gap: 0px !important;
+    letter-spacing: -0.8px !important;
+    white-space: nowrap !important;
   }
   .risk-summary strong {
-    font-size: 0.83rem !important;
+    font-size: 0.78rem !important;
     margin-left: 0 !important;
   }
-  
   .jisa-card-sub {
     font-size: 0.72rem !important;
   }
   .jisa-card-sub strong {
     font-size: 0.82rem !important;
   }
+
+  /* 본부명(경기·강원 등) 좌우 여백 축소 → card-right 공간 추가 확보 */
+  .card-left {
+    width: 55px;
+    flex: 0 0 55px;
+  }
+  .card-left h3 {
+    font-size: 0.92rem;
+  }
+
+  /* 심각 개소수+증감 배지가 넘칠 경우 가로 스크롤 보조 */
+  .card-right-bottom {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
+
+/* ── PC Callout 카드 내 저수지 목록 ───────────────────── */
+.callout-res-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.callout-res-list::-webkit-scrollbar { width: 4px; }
+.callout-res-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+.callout-res-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.82rem;
+}
+.callout-res-name {
+  color: #334155;
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.callout-res-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.callout-res-rate {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.88rem;
+}
+
+/* ── 모바일 지사 요약 헤더 ────────────────────────────── */
+.mobile-jisa-summary-header {
+  background: #0f2535;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mobile-jisa-summary-title {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+}
+.mobile-jisa-summary-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.83rem;
+  color: #94a3b8;
+}
+.mobile-jisa-summary-stats strong { color: #f1f5f9; }
+.mobile-jisa-summary-counts { font-size: 0.78rem; color: #64748b; }
+.mobile-jisa-summary-counts strong { margin-left: 1px; }
+
+/* ── 모바일 예보 박스 ────────────────────────────────── */
+.mobile-jisa-forecast {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 6px;
+}
+.mobile-jisa-needed-rain { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
+.mobile-jisa-needed-rain strong { color: #60a5fa; }
+.mobile-jisa-forecast-boxes { display: flex; gap: 6px; }
+.mobile-forecast-box {
+  flex: 1;
+  padding: 7px 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mobile-forecast-box-title {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 3px;
+}
+.mobile-forecast-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 4px;
+  border-radius: 4px;
+  text-align: center;
+  margin-bottom: 3px;
+}
+.mobile-forecast-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+/* ── 모바일 환경 숨김 처리 (대표님 지시) ────────────────── */
+@media (max-width: 768px) {
+  .mobile-map-fallback {
+    display: none !important;
+  }
+  .trend-legend-box {
+    display: none !important;
+  }
+}

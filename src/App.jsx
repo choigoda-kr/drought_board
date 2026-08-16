@@ -644,13 +644,28 @@ function App() {
                     key={`res-${res.lat}-${res.lng}`}
                     position={{ lat: res.lat, lng: res.lng }}
                     mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                    getPixelPositionOffset={() => ({ x: 0, y: 0 })}
                   >
-                    <div 
-                      className={`custom-reservoir-chip chip-${res.riskClass}`}
+                    <div
+                      className="res-marker-wrapper"
                       onClick={() => setSelectedJisa(res)}
                     >
-                      <span className="res-chip-icon">💧</span>
-                      <span className="res-chip-text">{res.name}{res.jisa ? `(${formatJisaName(res.jisa)})` : ''}, {fmtRate(res.rate)}%</span>
+                      {/* ① 물방울 SVG 마커 — 저수지 정확한 위치 anchor */}
+                      <svg
+                        className={`res-droplet-marker droplet-${res.riskClass}`}
+                        viewBox="0 0 24 28"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path d="M12 2 C12 2 3 10 3 16 A9 9 0 0 0 21 16 C21 10 12 2 12 2Z" />
+                      </svg>
+
+                      {/* ② 이름+저수율 라벨 — 물방울 우측상단 오프셋 */}
+                      <div className={`res-label-chip chip-${res.riskClass}`}>
+                        <span className="res-label-name">
+                          {res.name}{res.jisa ? `(${formatJisaName(res.jisa)})` : ''}
+                        </span>
+                        <span className="res-label-rate">{fmtRate(res.rate)}%</span>
+                      </div>
                     </div>
                   </OverlayView>
                 ))}
@@ -804,9 +819,15 @@ function App() {
                   console.log('[DEBUG] 매칭된 jSnap:', jSnap);
                 }
                 
-                const isPerAbove100 = targetJisa.perRate >= 100;
-                const rawNeeded = jSnap ? (jSnap.neededRain || 0) : 0;
-                const neededRainVal = isPerAbove100 ? 0 : rawNeeded;
+                let neededRainVal = 0;
+                if (jSnap) {
+                  const targetVol = jSnap.normalVol * 0.6;
+                  const targetDeficit = targetVol - jSnap.currentVol;
+                  if (targetDeficit > 0 && jSnap.deficitVol > 0) {
+                    neededRainVal = (targetDeficit / jSnap.deficitVol) * (jSnap.neededRain || 0);
+                  }
+                }
+                neededRainVal = Math.max(0, Math.round(neededRainVal));
 
                 let predPerRate = 100;
                 let estRateNum = null;
@@ -881,7 +902,7 @@ function App() {
                       {jSnap && (
                         <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', fontWeight: 600, marginTop: '2px', marginBottom: '2px' }}>
-                            <span>평년대비 60% 도달 필요강수량:</span> <strong style={{ color: '#1d4ed8' }}>{neededRainVal}mm</strong>
+                            <span>관심단계 도달 필요강수량 :</span> <strong style={{ color: '#1d4ed8' }}>{neededRainVal}mm</strong>
                           </div>
                           
                           <div style={{ display: 'flex', gap: '6px' }}>
@@ -929,6 +950,32 @@ function App() {
                           </div>
                         </div>
                       )}
+
+                      {/* 저수지 목록 */}
+                      <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '8px', paddingTop: '8px' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '5px' }}>
+                          저수지 목록
+                        </div>
+                        <div className="callout-res-list">
+                          {data.allReservoirs
+                            .filter(r => r.jisa === targetJisa.name)
+                            .map(res => {
+                              const rCls = res.riskClass === 'severe' ? 'status-alert'
+                                         : (res.riskClass === 'alert' || res.riskClass === 'warn') ? 'status-warn'
+                                         : 'status-safe';
+                              return (
+                                <div key={res.name} className="callout-res-item">
+                                  <span className="callout-res-name">💧 {res.name}</span>
+                                  <div className="callout-res-right">
+                                    <span className={`res-status ${rCls}`}>{res.riskStr}</span>
+                                    <span className="callout-res-rate">{fmtRate(res.rate)}%</span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          }
+                        </div>
+                      </div>
                     </div>
                   </>
                 );
@@ -969,8 +1016,12 @@ function App() {
           )}
         </div>
 
-        <div className="header-right">
-          <span className="header-badge">업데이트: {updateTime}</span>
+        <div className="header-right" style={{ flexDirection: 'column', gap: '4px', alignItems: 'flex-end', paddingRight: '5px' }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button className="header-link-btn" onClick={() => window.open('https://choigoda-kr.github.io/gg-disaster-center/', '_blank')}>종합상황실</button>
+            <button className="header-link-btn" onClick={() => window.open('https://choigoda-kr.github.io/weather-report/', '_blank')}>기상상황실</button>
+          </div>
+          <span className="header-badge" style={{ fontSize: '0.65rem', padding: '1px 6px', opacity: 0.7 }}>업데이트: {updateTime}</span>
         </div>
       </header>
 
@@ -1075,28 +1126,95 @@ function App() {
                             })()}
                           </div>
 
-                          {/* 모바일용 저수지 리스트 */}
-                          {selectedJisaDetail?.name === jisa.name && (
-                            <div className="mobile-res-list">
-                              {data.allReservoirs
-                                .filter(r => r.bonbu === selectedBonbu && r.jisa === selectedJisaDetail.name)
-                                .map(res => {
-                                  let rStatusClass = 'status-safe';
-                                  if(res.riskClass === 'severe') rStatusClass = 'status-alert';
-                                  else if(res.riskClass === 'warn' || res.riskClass === 'alert') rStatusClass = 'status-warn';
-                    
-                                  return (
-                                    <div key={`mobile-res-${res.name}`} className="res-item">
-                                      <span className="res-name">💧 {res.name}</span>
-                                      <div>
-                                        <span className={`res-status ${rStatusClass}`}>{res.riskStr}</span>
-                                        <span className="res-rate">{res.rate}%</span>
+                          {/* 모바일용 저수지 리스트 (지사 요약 헤더 + 3일/1주 예보박스 + 저수지 목록) */}
+                          {selectedJisaDetail?.name === jisa.name && (() => {
+                            const mJSnap = snapshotRows.find(r => r.date === todayStr && r.gubun === '지사' && r.jisa === jisa.name)
+                                        || snapshotRows.find(r => r.gubun === '지사' && r.jisa === jisa.name);
+                            let mNeededRain = 0;
+                            if (mJSnap) {
+                              const targetVol = mJSnap.normalVol * 0.6;
+                              const targetDeficit = targetVol - mJSnap.currentVol;
+                              if (targetDeficit > 0 && mJSnap.deficitVol > 0) {
+                                mNeededRain = (targetDeficit / mJSnap.deficitVol) * (mJSnap.neededRain || 0);
+                              }
+                            }
+                            mNeededRain = Math.max(0, Math.round(mNeededRain));
+                            const mEstRate   = mJSnap?.estRate ?? null;
+                            const mEstRate7d = mJSnap?.estRate7d ?? null;
+                            const mPredPer   = mJSnap?.estNormalComp || 0;
+                            const mPredPer7d = mJSnap?.estNormalComp7d || 0;
+                            const mBadge   = mJSnap ? (mPredPer   > 60 ? {label:'해갈(>60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
+                                             : mPredPer   > 50 ? {label:'부분(>50%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
+                                             : {label:'심각(≤50%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
+                            const mBadge7d = mJSnap ? (mPredPer7d > 60 ? {label:'해갈(>60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
+                                             : mPredPer7d > 50 ? {label:'부분(>50%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
+                                             : {label:'심각(≤50%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
+                            const totalCnt = (jisa.counts?.safe||0)+(jisa.counts?.warn||0)+(jisa.counts?.alert||0)+(jisa.counts?.severe||0);
+
+                            return (
+                              <div className="mobile-res-list">
+                                {/* 지사 요약 헤더 */}
+                                <div className="mobile-jisa-summary-header">
+                                  <div className="mobile-jisa-summary-title">
+                                    {formatJisaName(jisa.name)} 저수지 현황
+                                  </div>
+                                  <div className="mobile-jisa-summary-stats">
+                                    <span>현재 <strong>{fmtRate(jisa.rate)}%</strong></span>
+                                    <span>평년대비 <strong>{fmtPerRate(jisa.perRate)}%</strong></span>
+                                  </div>
+                                  <div className="mobile-jisa-summary-counts">
+                                    총<strong>{totalCnt}</strong>&nbsp;
+                                    관심<strong className="text-safe">{jisa.counts?.safe||0}</strong>&nbsp;
+                                    주의<strong className="text-warn">{jisa.counts?.warn||0}</strong>&nbsp;
+                                    경계<strong className="text-alert">{jisa.counts?.alert||0}</strong>&nbsp;
+                                    심각<strong className="text-severe">{jisa.counts?.severe||0}</strong>
+                                  </div>
+                                  {mJSnap && (
+                                    <div className="mobile-jisa-forecast">
+                                      <div className="mobile-jisa-needed-rain">
+                                        관심단계 도달 필요강수량 : <strong>{mNeededRain}mm</strong>
+                                      </div>
+                                      <div className="mobile-jisa-forecast-boxes">
+                                        <div className="mobile-forecast-box">
+                                          <div className="mobile-forecast-box-title">[ 3일 후 ]</div>
+                                          {mBadge && <div className="mobile-forecast-badge" style={{color:mBadge.color,background:mBadge.bg,border:`1px solid ${mBadge.border}`}}>{mBadge.label}</div>}
+                                          <div className="mobile-forecast-row"><span>예상강수:</span><strong style={{color:'#047857'}}>{mJSnap.forecastRain}mm</strong></div>
+                                          <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol ? fmtVol(mJSnap.addedVol) : 0}만</strong></div>
+                                          <div className="mobile-forecast-row"><span>예상저수율:</span><strong style={{color:'#2563eb'}}>{mEstRate !== null ? `${fmtRate(mEstRate)}%` : '-'}</strong></div>
+                                        </div>
+                                        <div className="mobile-forecast-box">
+                                          <div className="mobile-forecast-box-title">[ 1주 후 ]</div>
+                                          {mBadge7d && <div className="mobile-forecast-badge" style={{color:mBadge7d.color,background:mBadge7d.bg,border:`1px solid ${mBadge7d.border}`}}>{mBadge7d.label}</div>}
+                                          <div className="mobile-forecast-row"><span>예상강수:</span><strong style={{color:'#047857'}}>{mJSnap.forecastRain7d}mm</strong></div>
+                                          <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol7d ? fmtVol(mJSnap.addedVol7d) : 0}만</strong></div>
+                                          <div className="mobile-forecast-row"><span>예상저수율:</span><strong style={{color:'#2563eb'}}>{mEstRate7d !== null ? `${fmtRate(mEstRate7d)}%` : '-'}</strong></div>
+                                        </div>
                                       </div>
                                     </div>
-                                  )
-                              })}
-                            </div>
-                          )}
+                                  )}
+                                </div>
+
+                                {/* 저수지 목록 (원본 순서 유지) */}
+                                {data.allReservoirs
+                                  .filter(r => r.bonbu === selectedBonbu && r.jisa === selectedJisaDetail.name)
+                                  .map(res => {
+                                    let rStatusClass = 'status-safe';
+                                    if(res.riskClass === 'severe') rStatusClass = 'status-alert';
+                                    else if(res.riskClass === 'warn' || res.riskClass === 'alert') rStatusClass = 'status-warn';
+                                    return (
+                                      <div key={`mobile-res-${res.name}`} className="res-item">
+                                        <span className="res-name">💧 {res.name}</span>
+                                        <div>
+                                          <span className={`res-status ${rStatusClass}`}>{res.riskStr}</span>
+                                          <span className="res-rate">{fmtRate(res.rate)}%</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })
+                                }
+                              </div>
+                            );
+                          })()}
                         </React.Fragment>
                       );
                     })}
@@ -1171,6 +1289,73 @@ function App() {
           <h2>{formatJisaName(selectedJisaDetail?.name)} 저수지 현황</h2>
           <button className="close-btn" onClick={() => setSelectedJisaDetail(null)}>✕</button>
         </div>
+
+        {/* 신규: PC 우측 패널 지사 상세 요약 정보 */}
+        {selectedJisaDetail && (() => {
+          const jisa = selectedJisaDetail;
+          const mJSnap = snapshotRows.find(r => r.date === todayStr && r.gubun === '지사' && r.jisa === jisa.name)
+                      || snapshotRows.find(r => r.gubun === '지사' && r.jisa === jisa.name);
+          let mNeededRain = 0;
+          if (mJSnap) {
+            const targetVol = mJSnap.normalVol * 0.6;
+            const targetDeficit = targetVol - mJSnap.currentVol;
+            if (targetDeficit > 0 && mJSnap.deficitVol > 0) {
+              mNeededRain = (targetDeficit / mJSnap.deficitVol) * (mJSnap.neededRain || 0);
+            }
+          }
+          mNeededRain = Math.max(0, Math.round(mNeededRain));
+          const mEstRate   = mJSnap?.estRate ?? null;
+          const mEstRate7d = mJSnap?.estRate7d ?? null;
+          const mPredPer   = mJSnap?.estNormalComp || 0;
+          const mPredPer7d = mJSnap?.estNormalComp7d || 0;
+          const mBadge   = mJSnap ? (mPredPer > 60 ? {label:'해갈(>60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
+                                  : mPredPer > 50 ? {label:'부분(>50%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
+                                  : {label:'심각(≤50%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
+          const mBadge7d = mJSnap ? (mPredPer7d > 60 ? {label:'해갈(>60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
+                                  : mPredPer7d > 50 ? {label:'부분(>50%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
+                                  : {label:'심각(≤50%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
+          const totalCnt = (jisa.counts?.safe||0)+(jisa.counts?.warn||0)+(jisa.counts?.alert||0)+(jisa.counts?.severe||0);
+
+          return (
+            <div className="mobile-jisa-summary-header" style={{ margin: '0 10px 10px 10px' }}>
+              <div className="mobile-jisa-summary-stats">
+                <span>현재 <strong>{fmtRate(jisa.rate)}%</strong></span>
+                <span>평년대비 <strong>{fmtPerRate(jisa.perRate)}%</strong></span>
+              </div>
+              <div className="mobile-jisa-summary-counts">
+                총<strong>{totalCnt}</strong>&nbsp;
+                관심<strong className="text-safe">{jisa.counts?.safe||0}</strong>&nbsp;
+                주의<strong className="text-warn">{jisa.counts?.warn||0}</strong>&nbsp;
+                경계<strong className="text-alert">{jisa.counts?.alert||0}</strong>&nbsp;
+                심각<strong className="text-severe">{jisa.counts?.severe||0}</strong>
+              </div>
+              {mJSnap && (
+                <div className="mobile-jisa-forecast">
+                  <div className="mobile-jisa-needed-rain">
+                    관심단계 도달 필요강수량 : <strong>{mNeededRain}mm</strong>
+                  </div>
+                  <div className="mobile-jisa-forecast-boxes">
+                    <div className="mobile-forecast-box">
+                      <div className="mobile-forecast-box-title">[ 3일 후 ]</div>
+                      {mBadge && <div className="mobile-forecast-badge" style={{color:mBadge.color,background:mBadge.bg,border:`1px solid ${mBadge.border}`}}>{mBadge.label}</div>}
+                      <div className="mobile-forecast-row"><span>예상강수:</span><strong style={{color:'#047857'}}>{mJSnap.forecastRain}mm</strong></div>
+                      <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol ? fmtVol(mJSnap.addedVol) : 0}만</strong></div>
+                      <div className="mobile-forecast-row"><span>예상저수율:</span><strong style={{color:'#2563eb'}}>{mEstRate !== null ? `${fmtRate(mEstRate)}%` : '-'}</strong></div>
+                    </div>
+                    <div className="mobile-forecast-box">
+                      <div className="mobile-forecast-box-title">[ 1주 후 ]</div>
+                      {mBadge7d && <div className="mobile-forecast-badge" style={{color:mBadge7d.color,background:mBadge7d.bg,border:`1px solid ${mBadge7d.border}`}}>{mBadge7d.label}</div>}
+                      <div className="mobile-forecast-row"><span>예상강수:</span><strong style={{color:'#047857'}}>{mJSnap.forecastRain7d}mm</strong></div>
+                      <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol7d ? fmtVol(mJSnap.addedVol7d) : 0}만</strong></div>
+                      <div className="mobile-forecast-row"><span>예상저수율:</span><strong style={{color:'#2563eb'}}>{mEstRate7d !== null ? `${fmtRate(mEstRate7d)}%` : '-'}</strong></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         <div className="res-list">
           {selectedJisaDetail && data.allReservoirs
             .filter(r => r.bonbu === selectedBonbu && r.jisa === selectedJisaDetail.name)
