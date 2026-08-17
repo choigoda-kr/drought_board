@@ -156,6 +156,7 @@ function App() {
   const [nextRefreshSec, setNextRefreshSec] = useState(600);
   const [selectedBonbu, setSelectedBonbu] = useState('전국');
   const [selectedJisa, setSelectedJisa] = useState(null);
+  const [hoveredRes, setHoveredRes] = useState(null);
   const [selectedJisaDetail, setSelectedJisaDetail] = useState(null);
   const [showRadar, setShowRadar] = useState(true);
   const [radarPath, setRadarPath] = useState(null);
@@ -649,6 +650,8 @@ function App() {
                     <div
                       className="res-marker-wrapper"
                       onClick={() => setSelectedJisa(res)}
+                      onMouseEnter={() => setHoveredRes(res)}
+                      onMouseLeave={() => setHoveredRes(null)}
                     >
                       {/* ① 물방울 SVG 마커 — 저수지 정확한 위치 anchor */}
                       <svg
@@ -684,13 +687,15 @@ function App() {
                   let badgeClass7d = '';
                   if (jSnap && jSnap.neededRain !== undefined) {
                     const predPerRate = jSnap.estNormalComp || 0;
-                    if (predPerRate > 60) { badgeIcon = '★'; badgeClass = 'relief'; }
-                    else if (predPerRate > 50) { badgeIcon = '★'; badgeClass = 'partial'; }
+                    if (predPerRate >= 60) { badgeIcon = '★'; badgeClass = 'safe'; }
+                    else if (predPerRate >= 50) { badgeIcon = '★'; badgeClass = 'warn'; }
+                    else if (predPerRate >= 40) { badgeIcon = '★'; badgeClass = 'alert'; }
                     else { badgeIcon = '★'; badgeClass = 'severe'; }
                     
                     const predPerRate7d = jSnap.estNormalComp7d || 0;
-                    if (predPerRate7d > 60) { badgeIcon7d = '★'; badgeClass7d = 'relief'; }
-                    else if (predPerRate7d > 50) { badgeIcon7d = '★'; badgeClass7d = 'partial'; }
+                    if (predPerRate7d >= 60) { badgeIcon7d = '★'; badgeClass7d = 'safe'; }
+                    else if (predPerRate7d >= 50) { badgeIcon7d = '★'; badgeClass7d = 'warn'; }
+                    else if (predPerRate7d >= 40) { badgeIcon7d = '★'; badgeClass7d = 'alert'; }
                     else { badgeIcon7d = '★'; badgeClass7d = 'severe'; }
                   }
 
@@ -723,22 +728,27 @@ function App() {
               </>
             )}
 
-            {selectedJisa && selectedJisa.type === 'reservoir' && (
+            {(() => {
+              const activeRes = hoveredRes || (selectedJisa?.type === 'reservoir' ? selectedJisa : null);
+              if (!activeRes) return null;
+              return (
               <OverlayView
-                position={{ lat: selectedJisa.lat, lng: selectedJisa.lng }}
+                position={{ lat: activeRes.lat, lng: activeRes.lng }}
                 mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
               >
-                <div className={`custom-reservoir-tooltip res-tooltip-${selectedJisa.riskClass}`}>
+                <div className={`custom-reservoir-tooltip res-tooltip-${activeRes.riskClass}`}>
                   <div className="res-tooltip-header">
                     <div className="res-tooltip-title">
                       <span className="res-icon">💧</span>
-                      <span className="res-name-text">{selectedJisa.name}{selectedJisa.jisa ? `(${formatJisaName(selectedJisa.jisa)})` : ''}</span>
+                      <span className="res-name-text">{activeRes.name}{activeRes.jisa ? `(${formatJisaName(activeRes.jisa)})` : ''}</span>
                     </div>
                     <div className="res-header-right-group">
-                      <span className={`res-risk-badge badge-${selectedJisa.riskClass}`}>
-                        {selectedJisa.riskStr}
+                      <span className={`res-risk-badge badge-${activeRes.riskClass}`}>
+                        {activeRes.riskStr}
                       </span>
-                      <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setSelectedJisa(null); }}>✕</button>
+                      {selectedJisa?.type === 'reservoir' && selectedJisa === activeRes && (
+                        <button className="tooltip-close-btn" onClick={(e) => { e.stopPropagation(); setSelectedJisa(null); }}>✕</button>
+                      )}
                     </div>
                   </div>
 
@@ -746,25 +756,26 @@ function App() {
                     <tbody>
                       <tr>
                         <th>유효저수량</th>
-                        <td><strong>{fmtVol(selectedJisa.effVol)}</strong> 톤</td>
+                        <td style={{ whiteSpace: 'nowrap' }}><strong>{fmtVol(activeRes.effVol / 1000)}</strong> 천m³</td>
                         <th>현재저수량</th>
-                        <td><strong>{fmtVol(selectedJisa.curVol)}</strong> 톤</td>
+                        <td style={{ whiteSpace: 'nowrap' }}><strong>{fmtVol(activeRes.curVol / 1000)}</strong> 천m³</td>
                       </tr>
                       <tr>
                         <th>현재 저수율</th>
-                        <td className="highlight-rate"><strong>{fmtRate(selectedJisa.rate)}%</strong></td>
+                        <td className="highlight-rate"><strong>{fmtRate(activeRes.rate)}%</strong></td>
                         <th>평년 저수율</th>
-                        <td><strong>{fmtRate(selectedJisa.nrRate)}%</strong></td>
+                        <td><strong>{fmtRate(activeRes.nrRate)}%</strong></td>
                       </tr>
                       <tr>
                         <th>평년대비</th>
-                        <td colSpan="3" className="highlight-comp"><strong>{fmtPerRate(selectedJisa.perRate)}%</strong></td>
+                        <td colSpan="3" className="highlight-comp"><strong>{fmtPerRate(activeRes.perRate)}%</strong></td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
               </OverlayView>
-            )}
+              );
+            })()}
           </GoogleMap>
         </LoadScript>
         )}
@@ -844,15 +855,17 @@ function App() {
                 }
 
                 const sBadge = (isWarnOrAbove && jSnap) ? (
-                  predPerRate > 60 ? { label: '해갈(>60%)', color: '#0891b2', bg: '#ecfeff', border: '#67e8f9' } :
-                  predPerRate > 50 ? { label: '부분(>50%)', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' } :
-                  { label: '심각(≤50%)', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' }
+                  predPerRate >= 60 ? { label: '관심(≥60%)', color: '#0891b2', bg: '#ecfeff', border: '#67e8f9' } :
+                  predPerRate >= 50 ? { label: '주의(<60%)', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' } :
+                  predPerRate >= 40 ? { label: '경계(<50%)', color: '#f97316', bg: '#ffedd5', border: '#fdba74' } :
+                  { label: '심각(<40%)', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' }
                 ) : null;
                 
                 const sBadge7d = (isWarnOrAbove && jSnap) ? (
-                  predPerRate7d > 60 ? { label: '해갈(>60%)', color: '#0891b2', bg: '#ecfeff', border: '#67e8f9' } :
-                  predPerRate7d > 50 ? { label: '부분(>50%)', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' } :
-                  { label: '심각(≤50%)', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' }
+                  predPerRate7d >= 60 ? { label: '관심(≥60%)', color: '#0891b2', bg: '#ecfeff', border: '#67e8f9' } :
+                  predPerRate7d >= 50 ? { label: '주의(<60%)', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' } :
+                  predPerRate7d >= 40 ? { label: '경계(<50%)', color: '#f97316', bg: '#ffedd5', border: '#fdba74' } :
+                  { label: '심각(<40%)', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' }
                 ) : null;
 
                 return (
@@ -920,7 +933,7 @@ function App() {
                                 <span>예상강수:</span> <strong style={{ color: '#047857' }}>{jSnap.forecastRain}mm</strong>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', fontWeight: 600 }}>
-                                <span>유입량:</span> <strong style={{ color: '#0ea5e9' }}>{jSnap.addedVol ? fmtVol(jSnap.addedVol) : 0}만</strong>
+                                <span>유입량:</span> <strong style={{ color: '#0ea5e9' }}>{jSnap.addedVol ? fmtVol(jSnap.addedVol / 1000) : 0}천m³</strong>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', fontWeight: 600 }}>
                                 <span>예상저수율:</span> <strong style={{ color: '#2563eb' }}>{estRateNum !== null ? `${fmtRate(estRateNum)}%` : '-'}</strong>
@@ -941,7 +954,7 @@ function App() {
                                 <span>예상강수:</span> <strong style={{ color: '#047857' }}>{jSnap.forecastRain7d}mm</strong>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', fontWeight: 600 }}>
-                                <span>유입량:</span> <strong style={{ color: '#0ea5e9' }}>{jSnap.addedVol7d ? fmtVol(jSnap.addedVol7d) : 0}만</strong>
+                                <span>유입량:</span> <strong style={{ color: '#0ea5e9' }}>{jSnap.addedVol7d ? fmtVol(jSnap.addedVol7d / 1000) : 0}천m³</strong>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', fontWeight: 600 }}>
                                 <span>예상저수율:</span> <strong style={{ color: '#2563eb' }}>{estRateNum7d !== null ? `${fmtRate(estRateNum7d)}%` : '-'}</strong>
@@ -1018,8 +1031,14 @@ function App() {
 
         <div className="header-right" style={{ flexDirection: 'column', gap: '4px', alignItems: 'flex-end', paddingRight: '5px' }}>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button className="header-link-btn" onClick={() => window.open('https://choigoda-kr.github.io/gg-disaster-center/', '_blank')}>종합상황실</button>
-            <button className="header-link-btn" onClick={() => window.open('https://choigoda-kr.github.io/weather-report/', '_blank')}>기상상황실</button>
+            <button className="header-link-btn" onClick={() => window.open('https://choigoda-kr.github.io/gg-disaster-center/', '_blank')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', marginBottom: '-2px' }}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              종합상황실
+            </button>
+            <button className="header-link-btn" onClick={() => window.open('https://choigoda-kr.github.io/weather-report/', '_blank')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', marginBottom: '-2px' }}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              기상상황실
+            </button>
           </div>
           <span className="header-badge" style={{ fontSize: '0.65rem', padding: '1px 6px', opacity: 0.7 }}>업데이트: {updateTime}</span>
         </div>
@@ -1143,12 +1162,14 @@ function App() {
                             const mEstRate7d = mJSnap?.estRate7d ?? null;
                             const mPredPer   = mJSnap?.estNormalComp || 0;
                             const mPredPer7d = mJSnap?.estNormalComp7d || 0;
-                            const mBadge   = mJSnap ? (mPredPer   > 60 ? {label:'해갈(>60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
-                                             : mPredPer   > 50 ? {label:'부분(>50%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
-                                             : {label:'심각(≤50%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
-                            const mBadge7d = mJSnap ? (mPredPer7d > 60 ? {label:'해갈(>60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
-                                             : mPredPer7d > 50 ? {label:'부분(>50%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
-                                             : {label:'심각(≤50%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
+                            const mBadge   = mJSnap ? (mPredPer   >= 60 ? {label:'관심(≥60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
+                                             : mPredPer   >= 50 ? {label:'주의(<60%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
+                                             : mPredPer   >= 40 ? {label:'경계(<50%)',color:'#f97316',bg:'#ffedd5',border:'#fdba74'}
+                                             : {label:'심각(<40%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
+                            const mBadge7d = mJSnap ? (mPredPer7d >= 60 ? {label:'관심(≥60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
+                                             : mPredPer7d >= 50 ? {label:'주의(<60%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
+                                             : mPredPer7d >= 40 ? {label:'경계(<50%)',color:'#f97316',bg:'#ffedd5',border:'#fdba74'}
+                                             : {label:'심각(<40%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
                             const totalCnt = (jisa.counts?.safe||0)+(jisa.counts?.warn||0)+(jisa.counts?.alert||0)+(jisa.counts?.severe||0);
 
                             return (
@@ -1179,14 +1200,14 @@ function App() {
                                           <div className="mobile-forecast-box-title">[ 3일 후 ]</div>
                                           {mBadge && <div className="mobile-forecast-badge" style={{color:mBadge.color,background:mBadge.bg,border:`1px solid ${mBadge.border}`}}>{mBadge.label}</div>}
                                           <div className="mobile-forecast-row"><span>예상강수:</span><strong style={{color:'#047857'}}>{mJSnap.forecastRain}mm</strong></div>
-                                          <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol ? fmtVol(mJSnap.addedVol) : 0}만</strong></div>
+                                          <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol ? fmtVol(mJSnap.addedVol / 1000) : 0}천m³</strong></div>
                                           <div className="mobile-forecast-row"><span>예상저수율:</span><strong style={{color:'#2563eb'}}>{mEstRate !== null ? `${fmtRate(mEstRate)}%` : '-'}</strong></div>
                                         </div>
                                         <div className="mobile-forecast-box">
                                           <div className="mobile-forecast-box-title">[ 1주 후 ]</div>
                                           {mBadge7d && <div className="mobile-forecast-badge" style={{color:mBadge7d.color,background:mBadge7d.bg,border:`1px solid ${mBadge7d.border}`}}>{mBadge7d.label}</div>}
                                           <div className="mobile-forecast-row"><span>예상강수:</span><strong style={{color:'#047857'}}>{mJSnap.forecastRain7d}mm</strong></div>
-                                          <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol7d ? fmtVol(mJSnap.addedVol7d) : 0}만</strong></div>
+                                          <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol7d ? fmtVol(mJSnap.addedVol7d / 1000) : 0}천m³</strong></div>
                                           <div className="mobile-forecast-row"><span>예상저수율:</span><strong style={{color:'#2563eb'}}>{mEstRate7d !== null ? `${fmtRate(mEstRate7d)}%` : '-'}</strong></div>
                                         </div>
                                       </div>
@@ -1308,12 +1329,14 @@ function App() {
           const mEstRate7d = mJSnap?.estRate7d ?? null;
           const mPredPer   = mJSnap?.estNormalComp || 0;
           const mPredPer7d = mJSnap?.estNormalComp7d || 0;
-          const mBadge   = mJSnap ? (mPredPer > 60 ? {label:'해갈(>60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
-                                  : mPredPer > 50 ? {label:'부분(>50%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
-                                  : {label:'심각(≤50%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
-          const mBadge7d = mJSnap ? (mPredPer7d > 60 ? {label:'해갈(>60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
-                                  : mPredPer7d > 50 ? {label:'부분(>50%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
-                                  : {label:'심각(≤50%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
+          const mBadge   = mJSnap ? (mPredPer >= 60 ? {label:'관심(≥60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
+                                  : mPredPer >= 50 ? {label:'주의(<60%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
+                                  : mPredPer >= 40 ? {label:'경계(<50%)',color:'#f97316',bg:'#ffedd5',border:'#fdba74'}
+                                  : {label:'심각(<40%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
+          const mBadge7d = mJSnap ? (mPredPer7d >= 60 ? {label:'관심(≥60%)',color:'#0891b2',bg:'#ecfeff',border:'#67e8f9'}
+                                  : mPredPer7d >= 50 ? {label:'주의(<60%)',color:'#d97706',bg:'#fffbeb',border:'#fcd34d'}
+                                  : mPredPer7d >= 40 ? {label:'경계(<50%)',color:'#f97316',bg:'#ffedd5',border:'#fdba74'}
+                                  : {label:'심각(<40%)',color:'#e11d48',bg:'#fff1f2',border:'#fda4af'}) : null;
           const totalCnt = (jisa.counts?.safe||0)+(jisa.counts?.warn||0)+(jisa.counts?.alert||0)+(jisa.counts?.severe||0);
 
           return (
@@ -1339,14 +1362,14 @@ function App() {
                       <div className="mobile-forecast-box-title">[ 3일 후 ]</div>
                       {mBadge && <div className="mobile-forecast-badge" style={{color:mBadge.color,background:mBadge.bg,border:`1px solid ${mBadge.border}`}}>{mBadge.label}</div>}
                       <div className="mobile-forecast-row"><span>예상강수:</span><strong style={{color:'#047857'}}>{mJSnap.forecastRain}mm</strong></div>
-                      <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol ? fmtVol(mJSnap.addedVol) : 0}만</strong></div>
+                      <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol ? fmtVol(mJSnap.addedVol / 1000) : 0}천m³</strong></div>
                       <div className="mobile-forecast-row"><span>예상저수율:</span><strong style={{color:'#2563eb'}}>{mEstRate !== null ? `${fmtRate(mEstRate)}%` : '-'}</strong></div>
                     </div>
                     <div className="mobile-forecast-box">
                       <div className="mobile-forecast-box-title">[ 1주 후 ]</div>
                       {mBadge7d && <div className="mobile-forecast-badge" style={{color:mBadge7d.color,background:mBadge7d.bg,border:`1px solid ${mBadge7d.border}`}}>{mBadge7d.label}</div>}
                       <div className="mobile-forecast-row"><span>예상강수:</span><strong style={{color:'#047857'}}>{mJSnap.forecastRain7d}mm</strong></div>
-                      <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol7d ? fmtVol(mJSnap.addedVol7d) : 0}만</strong></div>
+                      <div className="mobile-forecast-row"><span>유입량:</span><strong style={{color:'#0ea5e9'}}>{mJSnap.addedVol7d ? fmtVol(mJSnap.addedVol7d / 1000) : 0}천m³</strong></div>
                       <div className="mobile-forecast-row"><span>예상저수율:</span><strong style={{color:'#2563eb'}}>{mEstRate7d !== null ? `${fmtRate(mEstRate7d)}%` : '-'}</strong></div>
                     </div>
                   </div>
@@ -1402,19 +1425,24 @@ function App() {
           <table className="legend-table">
             <tbody>
               <tr>
-                <td className="icon-col"><div className="legend-star relief">★</div></td>
-                <td className="badge-col"><span className="badge relief">해소</span></td>
-                <td className="desc-col">평년 60% 초과 예상 (3일후, 1주일 후)</td>
+                <td className="icon-col"><div className="legend-star safe">★</div></td>
+                <td className="badge-col"><span className="badge safe">관심</span></td>
+                <td className="desc-col">평년 60% 이상 예상 (3일/1주 후)</td>
               </tr>
               <tr>
-                <td className="icon-col"><div className="legend-star partial">★</div></td>
-                <td className="badge-col"><span className="badge partial">미흡</span></td>
-                <td className="desc-col">평년 50% 초과 예상 (3일후, 1주일 후)</td>
+                <td className="icon-col"><div className="legend-star warn">★</div></td>
+                <td className="badge-col"><span className="badge warn">주의</span></td>
+                <td className="desc-col">평년 50% 이상 예상 (3일/1주 후)</td>
+              </tr>
+              <tr>
+                <td className="icon-col"><div className="legend-star alert">★</div></td>
+                <td className="badge-col"><span className="badge alert">경계</span></td>
+                <td className="desc-col">평년 40% 이상 예상 (3일/1주 후)</td>
               </tr>
               <tr>
                 <td className="icon-col"><div className="legend-star severe">★</div></td>
-                <td className="badge-col"><span className="badge severe">부족</span></td>
-                <td className="desc-col">평년 50% 이하 지속 (3일후, 1주일 후)</td>
+                <td className="badge-col"><span className="badge severe">심각</span></td>
+                <td className="desc-col">평년 40% 미만 지속 (3일/1주 후)</td>
               </tr>
             </tbody>
           </table>

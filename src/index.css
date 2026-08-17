@@ -549,8 +549,9 @@ body {
   border: 1.5px solid #ffffff;
   flex-shrink: 0;
 }
-.jisa-chip-badge.relief { background: #ecfeff; color: #0891b2; border-color: #06b6d4; box-shadow: 0 0 8px rgba(6, 182, 212, 0.7); }
-.jisa-chip-badge.partial { background: #fffbeb; color: #d97706; border-color: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.7); }
+.jisa-chip-badge.safe { background: #ecfeff; color: #0891b2; border-color: #06b6d4; box-shadow: 0 0 8px rgba(6, 182, 212, 0.7); }
+.jisa-chip-badge.warn { background: #fffbeb; color: #d97706; border-color: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.7); }
+.jisa-chip-badge.alert { background: #ffedd5; color: #f97316; border-color: #fdba74; box-shadow: 0 0 8px rgba(249, 115, 22, 0.7); }
 .jisa-chip-badge.severe { background: #fff1f2; color: #e11d48; border-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.7); }
 
 /* 저수지 마커: 물방울 SVG + 오프셋 라벨 분리 구조 */
@@ -1058,34 +1059,36 @@ body {
   border: 1.5px solid #ffffff;
   margin: 0 auto;
 }
-.legend-table .legend-star.relief {
+.legend-table .legend-star.safe {
   background: #ecfeff;
   color: #0891b2;
   border-color: #06b6d4;
   box-shadow: 0 0 8px rgba(6, 182, 212, 0.7);
 }
-.legend-table .legend-star.partial {
+.legend-table .legend-star.warn {
   background: #fffbeb;
   color: #d97706;
   border-color: #f59e0b;
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
 }
+.legend-table .legend-star.alert { background: #ffedd5; color: #f97316; border-color: #fdba74; box-shadow: 0 0 8px rgba(249, 115, 22, 0.7); }
 .legend-table .legend-star.severe {
   background: #fff1f2;
   color: #e11d48;
   border-color: #ef4444;
   box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
 }
-.legend-table .badge.relief {
+.legend-table .badge.safe {
   background: #ecfeff;
   color: #0891b2;
   border: 1px solid #67e8f9;
 }
-.legend-table .badge.partial {
+.legend-table .badge.warn {
   background: #fffbeb;
   color: #d97706;
   border: 1px solid #fcd34d;
 }
+.legend-table .badge.alert { background: #ffedd5; color: #f97316; border-color: #fdba74; }
 .legend-table .badge.severe {
   background: #fff1f2;
   color: #e11d48;
@@ -1121,17 +1124,23 @@ body {
   border: 1.5px solid #ffffff;
   transform: translate(26px, -14px) !important;
 }
-.map-jisa-badge-overlay.relief {
+.map-jisa-badge-overlay.safe {
   background: #ecfeff;
   color: #0891b2;
   border-color: #06b6d4;
   box-shadow: 0 0 8px rgba(6, 182, 212, 0.7);
 }
-.map-jisa-badge-overlay.partial {
+.map-jisa-badge-overlay.warn {
   background: #fffbeb;
   color: #d97706;
   border-color: #f59e0b;
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+}
+.map-jisa-badge-overlay.alert {
+  background: #ffedd5;
+  color: #f97316;
+  border-color: #fdba74;
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.7);
 }
 .map-jisa-badge-overlay.severe {
   background: #fff1f2;
@@ -1224,16 +1233,17 @@ body {
   font-size: 11px;
   font-weight: 800;
 }
-.legend-item.relief .badge {
+.legend-item.safe .badge {
   background: #eff6ff;
   color: #1d4ed8;
   border: 1px solid #1d4ed8;
 }
-.legend-item.partial .badge {
+.legend-item.warn .badge {
   background: #fffbeb;
   color: #b45309;
   border: 1px solid #b45309;
 }
+.legend-item.alert .badge { background: #ffedd5; color: #f97316; border-color: #fdba74; }
 .legend-item.severe .badge {
   background: #fef2f2;
   color: #b91c1c;
@@ -1372,8 +1382,9 @@ body {
   border-radius: 10px;
   font-weight: 700;
 }
-.callout-forecast-badge.relief { background: #ecfeff; color: #0891b2; }
-.callout-forecast-badge.partial { background: #fffbeb; color: #d97706; }
+.callout-forecast-badge.safe { background: #ecfeff; color: #0891b2; }
+.callout-forecast-badge.warn { background: #fffbeb; color: #d97706; }
+.callout-forecast-badge.alert { background: #ffedd5; color: #f97316; }
 .callout-forecast-badge.severe { background: #fff1f2; color: #e11d48; }
 
 .callout-body-grid {
